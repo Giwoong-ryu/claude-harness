@@ -1,35 +1,23 @@
-# Claude Verification Harness
+# Claude Harness
 
-> "규율은 코드보다 스캐폴딩에서 드러난다" - OpenAI Harness Engineering
+Claude Code를 쓸 때 반복되는 실수를 줄이기 위한 규칙 파일 모음입니다.
 
-Claude Code가 틀릴 수밖에 없는 상황에서도 틀리지 않게 만드는 검증 시스템.
-
----
-
-## 이게 뭔가
-
-Claude Code에 얹는 **검증 레이어**다.
-
-프롬프트가 아니다. 규칙 파일과 구조화된 파이프라인으로 Claude의 행동을 제어한다.
-
-```
-프롬프트 엔지니어링  ⊂  컨텍스트 엔지니어링  ⊂  하네스 엔지니어링
-```
-
-하네스는 가장 바깥 레이어다. Claude가 무엇을 해야 하는지가 아니라, **어떻게 틀리지 않을지**를 시스템으로 정의한다.
+CLAUDE.md + 라우팅 설정 + 검증 규칙으로 구성되며, 단일 프로젝트에서 실제로 운용하며 다듬어온 설정입니다.
 
 ---
 
 ## 왜 만들었나
 
-Claude Code를 쓰다 보면 반복되는 실패 패턴이 있다:
+Claude Code를 쓰다 보면 반복되는 실패 패턴이 있습니다:
 
-- 코드를 읽지 않고 기억으로 설명하다가 틀림 (할루시네이션)
+- 파일을 읽지 않고 기억으로 설명하다가 틀림 (할루시네이션)
 - 증상 위치만 고치고 근본 원인은 그대로 (증상 패치)
-- 설계 검토 없이 코드 작성 후 뒤늦게 구조 문제 발견
+- 3+ 파일 변경 시 설계 검토 없이 코드 작성 후 구조 문제 뒤늦게 발견
 - 수정 후 같은 유형 버그가 다른 파일에서 재발
 
-이 패턴들을 구조적으로 차단하는 게 이 하네스의 목적이다.
+이 패턴들을 구조적으로 차단하는 게 이 하네스의 목적입니다.
+
+외부 참고로, [2026년 CodeRabbit 리포트](https://www.coderabbit.ai/blog/ai-code-review-stats)는 AI 생성 코드가 인간 대비 전체 이슈 1.7배, 보안 취약점 2.74배, 에러 핸들링 미흡 2배임을 측정했습니다. 이 수치는 AI가 생성 속도 대비 검증 절차를 거치지 않을 때 발생하는 문제를 잘 보여줍니다.
 
 ---
 
@@ -38,87 +26,65 @@ Claude Code를 쓰다 보면 반복되는 실패 패턴이 있다:
 | 단계 | 이름 | 역할 | 트리거 |
 |------|------|------|--------|
 | 0 | **역추적** | 버그 근본 원인 확정 | 에러/오류 키워드 감지 |
-| 1 | **GATE** | 버전+패턴 로드, 관련 경고 출력 | 코드 생성 전 1회 |
-| 2 | **DMAD 토론** | 설계자 vs 사용자 관점 문답 | 3+ 파일 변경 |
-| 3 | **sim** | 3개월+10배 장기 실패 시뮬레이션 | 3+ 파일 변경 후 |
+| 1 | **GATE** | 버전 + 패턴 로드, 관련 경고 출력 | 코드 생성 전 1회 |
+| 2 | **DMAD 토론** | 설계자 vs 사용자 관점 문답 | 3+ 파일, 신규기능/복합수정 |
+| 3 | **sim** | 3개월+10배 장기 실패 시뮬레이션 | 3+ 파일 변경 후 자동 |
 | 4 | **Check** | pre-commit + CI + E2E 도구 검증 | 코드 생성 후 |
-| 5 | **검증 루프** | 실패 시 역추적 재실행 → 최대 3회 | sim/Check 실패 시 |
+| 5 | **smartLoop** | 실패 유형별 최소 지점에서 재시작 | sim/Check 실패 시 |
 
 ### 역추적 (Reverse Trace)
 
-버그 수정 전 3문으로 근본 원인을 확정한다.
+버그 수정 전 근본 원인을 확정합니다.
 
 ```
 [역추적]
 증상: {에러/문제 1줄}
 경로: {어떤 입력 → 어디를 거쳐 → 여기서 터짐}
 수정 위치: {근본 원인 위치 확정}
+→ 수정 위치 확정 후 코드 작성
 ```
 
-트리거 키워드: `에러, 오류, 안되, 안됨, 문제, 실패, 버그, 500, 404, crash, fail`
-
+트리거: `에러, 오류, 안되, 문제, 실패, 버그, 500, 404, crash, fail`
 1-5 파일에 적용. 6+ 파일은 sim S2가 더 깊게 커버.
 
-### DMAD 토론 (Diverse Multi-Agent Debate)
+### DMAD 토론
 
-코드 작성 전, 두 관점이 문답한다.
+코드 작성 전, 두 관점이 문답합니다.
 
-**설계자 (순방향):** 기술적 최선 추구
-- 더 단순한 방법이 있나?
-- 기존 코드 어디와 부딪히나?
-- 가장 위험한 가정 하나는?
+**설계자 (순방향 - 기술 관점):** 더 단순한 방법? 기존 코드와 충돌? 가장 위험한 가정?
+**사용자 (역방향 - 실사용 관점):** 처음 보는 사람이 쓸 수 있나? 실패했을 때 알 수 있나?
 
-**사용자 (역방향):** 실제 사용 경험 관점
-- 처음 보는 사람이 쓸 수 있나?
-- 실패했을 때 알 수 있나?
+핵심 규칙:
+- 토론 시작 전 변경 대상 파일 전부 Read 필수
+- 문제 제기 시 `파일명:라인: 코드내용` 형식으로 직접 인용
+- 인용 없는 주장 금지 (오독 할루시네이션 전파 차단)
 
-**핵심 규칙:**
-- 토론 시작 전 변경 대상 파일 전부 Read 필수 (기억으로 코드 언급 금지)
-- 문제 제기 시 코드 라인 직접 인용: `파일명:라인: 코드내용`
-- 인용 없는 주장 금지 (오독 할루시네이션 방지)
+이 인용 규칙이 왜 필요한지는 [`docs/dmad-false-positive-analysis.md`](docs/dmad-false-positive-analysis.md)에 실제 케이스와 함께 기록했습니다.
 
-### sim (Failure Simulation)
+### sim (장기 실패 시뮬레이션)
 
-완성된 코드를 "3개월 후 + 규모 10배" 상황에서 따라가며 터지는 곳을 찾는다.
+완성된 코드를 "3개월 후 + 규모 10배" 상황에서 따라가며 터지는 곳을 찾습니다.
 
 ```
-S1. 실패 시뮬레이션 - 코드를 실제로 Read 후 추적
+S1. 실패 시뮬레이션 - 코드 Read 후 시나리오 추적
 S2. 근본 원인 탐색 - 같은 유형 전체 grep
 S3. 수정 + 확인 시뮬레이션 (루프 최대 2회)
-    → 수정 후 git commit 필수: "[sim] 파일:라인 수정내용"
 ```
 
----
+`/sim` 명령으로 언제든 수동 실행도 가능합니다.
 
-## 하네스 정의 충족 여부
+### smartLoop
 
-| 하네스 구성요소 (출처) | 이 시스템 | 상태 |
-|----------------------|----------|------|
-| 환경 설계 (OpenAI) | CLAUDE.md + routing.json + rules/ | OK |
-| 피드백 루프 (OpenAI) | patterns.json + sim git commit | OK |
-| 안전장치 (tistory) | DMAD 인용규칙 + 파일 Read 강제 | OK |
-| 검증 루프 (tistory) | sim S1→S2→S3 | OK |
-| LLM 평가 하네스 (tistory) | 예비 실험 결과 | 부분 |
-| 저점 올리기 (토스) | 최악의 실수 구조적 차단 | OK |
-| 관측 가능성 | 미구현 | 로드맵 |
-| 오케스트레이션 | 미구현 | 로드맵 |
+실패 시 전체를 처음부터 재실행하지 않고 실패 유형별 최소 지점에서 재시작합니다.
 
----
+| 실패 유형 | 재시작 지점 | 토큰 비용 |
+|----------|------------|---------|
+| lint 오류 | 직접 수정만 | ~50 |
+| CI 실패 | 역추적만 재실행 | ~70 |
+| sim FAIL | sim S2부터 | ~150 |
+| 설계 결함 | 전체 재시작 | ~500 |
 
-## 예비 실험 결과
-
-> 소규모 샘플 (12회, 단일 프로젝트). 방향성 확인 용도. 추가 검증 필요.
-
-qt-video-saas 프로젝트, Opus/Sonnet 모델 교차 테스트.
-
-| 비교 | 결과 |
-|------|------|
-| 순차 DMAD vs 병렬 DMAD | 병렬에서 오탐 감소 관찰 |
-| 풀버전 vs 경량 | 풀버전이 유효 문제 발견 약 2.7배 |
-| 오탐 원인 | 할루시네이션 전파 (설계자 오판 → 사용자로 전파) |
-| 차단 방법 | 파일 Read 강제 + 코드 인용 규칙 |
-
-병렬이 오탐을 줄이는 메커니즘은 실제 코드 확인으로 검증됨 (content_type 케이스).
+최대 3회. 3회 후에도 실패 시 사용자에게 보고하고 승인을 기다립니다.
 
 ---
 
@@ -126,62 +92,51 @@ qt-video-saas 프로젝트, Opus/Sonnet 모델 교차 테스트.
 
 ```
 claude-harness/
-├── CLAUDE.md              # 메인 하네스 설정 (여기서 시작)
-├── rules/
-│   ├── eazycheck-v5.md   # GATE + DMAD + sim + Check 상세 규칙
-│   └── pattern-system.md # 패턴 축적 시스템
+├── CLAUDE.md                            # 시작점 (역추적 + 파일 수별 검증 흐름)
 ├── state/
-│   └── routing.json      # 라우팅 + DMAD 구조 정의
+│   └── routing.json                     # DMAD 역할 정의 + smartLoop + 트리거
+├── rules/
+│   ├── eazycheck-v5.md                  # GATE + DMAD + sim + Check 상세
+│   └── pattern-system.md               # 반복 실수 축적 시스템 (3Phase)
 ├── skills/
-│   └── sim/
-│       └── SKILL.md      # 장기 실패 시뮬레이션 스킬
+│   └── sim/SKILL.md                     # /sim 장기 실패 시뮬레이션 절차
 └── docs/
-    └── dmad-false-positive-analysis.md  # 오탐 분석 문서
+    └── dmad-false-positive-analysis.md  # DMAD 오탐 유형, 차단 방법, 한계
 ```
 
 ---
 
 ## 설치
 
+### 핵심만 (역추적 + 검증 흐름)
+
+`CLAUDE.md`를 `~/.claude/CLAUDE.md`에 병합합니다.
+
+### 전체
+
 ```bash
-# Claude Code 전역 설정 폴더에 복사
 cp -r rules/ ~/.claude/rules/
 cp -r skills/ ~/.claude/skills/
 cp -r state/ ~/.claude/state/
-
-# CLAUDE.md는 기존 파일에 병합 또는 덮어쓰기
+# CLAUDE.md는 기존 파일에 병합 또는 교체
 ```
 
----
-
-## 다른 하네스와의 차이
-
-| | 이 시스템 | Chachamaru127 |
-|--|----------|--------------|
-| 목적 | 검증 (틀리지 않게) | 오케스트레이션 (자동화) |
-| 근거 | 예비 실험 + 메커니즘 분석 | 선언형 가드레일 |
-| 특화 | 오탐 방지, 할루시네이션 차단 | Plan→Work→Review 사이클 |
-
-둘은 경쟁 관계가 아니다. 함께 쓰면 더 완성된 하네스가 된다.
-
-| | 이 시스템 | Ralph |
-|--|----------|-------|
-| 방식 | 실패 시 역추적으로 근본원인 재확인 | 같은 명령 반복 |
-| 수렴 | 매 사이클 새 근본원인 → 수렴 보장 | 같은 증상 반복 가능 |
-| 발견 범위 | 설계+장기실패+근본원인 | 표면 에러만 |
+규칙 파일 내 경로는 본인 환경에 맞게 수정하세요.
 
 ---
 
-## 로드맵
+## 한계
 
-- [ ] 관측 가능성 레이어 (에이전트가 직접 로그 접근)
-- [ ] 오케스트레이션 레이어 (Plan→Work→Review→Release)
-- [ ] 추가 프로젝트 실험 (현재 단일 프로젝트 한계 극복)
+- 단일 프로젝트(Python/FastAPI)에서 운용하며 만든 설정입니다. 다른 스택에서는 조정이 필요할 수 있습니다.
+- DMAD와 sim은 Claude가 실제 파일을 Read해야 동작합니다. 컨텍스트 창 부족 시 효과가 줄어듭니다.
+- 규칙이 많을수록 토큰 비용이 증가합니다. 필요한 부분만 선택해서 쓰는 게 낫습니다.
+- DMAD의 도메인 지식 부재 오탐은 여전히 발생합니다. ([상세](docs/dmad-false-positive-analysis.md))
 
 ---
 
 ## 참고
 
 - [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/)
-- [Martin Fowler - Harness Engineering](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
+- [Martin Fowler - Exploring Generative AI](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
 - [Toss Tech - Harness for Team Productivity](https://toss.tech/article/harness-for-team-productivity)
+- [CodeRabbit AI Code Review Stats 2026](https://www.coderabbit.ai/blog/ai-code-review-stats)
