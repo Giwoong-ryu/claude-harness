@@ -1,0 +1,108 @@
+{
+  "departments": {
+    "검증": {
+      "agents": ["eazycheck-gate", "code-reviewer", "security-scanner", "pattern-debugger"],
+      "trigger": "검증|리뷰|보안|디버깅|패턴|GATE|EazyCheck",
+      "description": "코드 품질, 보안, 패턴 검증 전담"
+    },
+    "개발": {
+      "agents": ["python-backend", "frontend-react"],
+      "trigger": "Python|FastAPI|React|Next|구현|개발",
+      "description": "실제 코드 작성 및 구현 전담"
+    },
+    "설계": {
+      "agents": ["architect"],
+      "trigger": "설계|아키텍처|API 설계|리팩토링|마이크로서비스",
+      "description": "시스템 설계 및 아키텍처 결정 전담"
+    }
+  },
+  "departmentRouting": {
+    "rules": [
+      "3-5 파일 변경 + 신규기능/복합수정 -> DMAD 토론 (1라운드 + sim 1회)",
+      "3-5 파일 변경 + 설정/배포/리팩토링 -> 토론 스킵 + sim 1회만",
+      "6+ 파일 변경 -> DMAD 토론 (2라운드 + sim 루프 2회)",
+      "코드 생성 후 -> 검증부서(code-reviewer) 자동 실행",
+      "반복 오류 -> 검증부서(pattern-debugger) 자동 실행"
+    ],
+    "discussionPattern": {
+      "method": "DMAD (Diverse Multi-Agent Debate) - 추론 방향이 다른 두 역할의 문답",
+      "scaleRules": {
+        "1-2파일": "토론 없음",
+        "3-5파일": "자문자답 (같은 컨텍스트, 토큰 최소)",
+        "6+파일": "/ag 호출 (독립 컨텍스트, 비공개)"
+      },
+      "roles": {
+        "설계자": {
+          "사고방향": "순방향 (설계 → 구현 → 결과 예측)",
+          "질문": [
+            "이 문제를 해결하는 더 단순한 방법이 있나?",
+            "이 설계가 기존 코드의 어디와 부딪히나?",
+            "이 설계에서 가장 위험한 가정 하나는?",
+            "이 구현이 기존 코드베이스에 이미 있는 로직과 중복되는가?"
+          ],
+          "규칙": "사용자 반박에 전부 수긍 금지, 최소 1개는 기술적 근거로 방어",
+          "인용규칙": "문제 제기 시 반드시 파일명:라인: 코드내용 형식으로 직접 인용. 인용 없는 주장 금지."
+        },
+        "사용자": {
+          "사고방향": "역방향 (이걸 실제로 쓸 때 → 이 설계로 가능한가?)",
+          "질문": [
+            "처음 보는 사람이 이 기능을 찾고 쓸 수 있나?",
+            "사용자가 기대하는 가장 자연스러운 방식으로 동작하나?",
+            "실수하거나 실패했을 때 스스로 해결할 수 있나?",
+            "실패했을 때 사용자가 알 수 있나? 에러가 조용히 삼켜지는 곳은 없나?"
+          ],
+          "규칙": "기술 용어를 모르는 최종 사용자 관점, 매 라운드 실사용 반례 1개 이상",
+          "인용규칙": "문제 제기 시 반드시 파일명:라인: 코드내용 형식으로 직접 인용. 인용 없는 주장 금지."
+        }
+      },
+      "preCondition": "토론 시작 전 변경 대상 파일 + 직접 의존 파일 전부 Read 필수. Read 없이 토론 시작 금지.",
+      "flow": "파일 Read 완료 → 설계자(설계안) → 사용자(반박+반례) → 설계자(수정, 전부수긍금지) → 사용자(재검토) → 합의 → 코드 작성",
+      "postCodeChain": "sim deep 자동 실행 (실패 시뮬레이션 루프)",
+      "skipConditions": ["단순 버그 수정", "1-2 파일", "긴급 핫픽스", "설정/배포/단순 리팩토링 (신규 기능/복합수정 아닌 경우)"]
+    }
+  },
+  "principles": {
+    "noTempFix": true,
+    "versionLockStrict": true,
+    "readBeforeEdit": true,
+    "noGuessing": true
+  },
+  "reverseTrace": {
+    "trigger": "에러|오류|안되|안됨|문제|실패|버그|왜|500|404|터짐|crash|fail",
+    "apply": "1-5 파일 버그 수정 시",
+    "skip": "6+ 파일 (sim S2가 커버)",
+    "format": "증상: {1줄} / 경로: {추적} / 수정 위치: {확정}",
+    "tokenCost": 77
+  },
+  "triggers": {
+    "context7": [
+      "/최신",
+      "최신 버전"
+    ],
+    "supabaseTrigger": {
+      "keywords": ["Supabase", "RLS", "보안 정책", "테이블 생성", "Row Level Security"],
+      "action": "skill:supabase-postgres-best-practices"
+    },
+    "remotionTrigger": {
+      "keywords": ["Remotion", "자막 생성", "영상 렌더링", "비디오 편집"],
+      "action": "skill:remotion-best-practices"
+    },
+    "codeAnalysisTrigger": {
+      "keywords": ["코드 분석", "품질 점수", "리팩토링", "성능 분석"],
+      "action": "skill:sc:analyze"
+    },
+    "rcaTrigger": {
+      "keywords": ["에러 분석", "원인 찾아", "왜 실패", "root cause", "디버깅"],
+      "action": "rca_pipeline",
+      "agents": ["debugger", "silent-failure-hunter"]
+    },
+    "ralphTrigger": {
+      "keywords": ["끝날때까지", "통과할때까지", "멈추지마", "계속해"],
+      "action": "skill:ralph"
+    }
+  },
+  "_meta": {
+    "description": "EazyCheck 라우팅 규칙. departments + discussionPattern이 핵심.",
+    "lastUpdated": "2026-03-16"
+  }
+}
