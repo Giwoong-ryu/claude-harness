@@ -183,14 +183,30 @@ ez-harness/
 
 ## 설치
 
-### 자동 설치 (권장)
+### 방법 1: AI에게 지시 (권장)
+
+Claude Code, Codex, Antigravity, Cursor 등에서 아래를 입력하세요:
+
+```
+https://github.com/ez-claude/ez-harness 클론해서 설치해줘
+```
+
+AI가 README를 읽고 알아서 설치합니다:
+- `~/.claude/`에 hooks, rules, skills, docs 복사
+- 기존 CLAUDE.md에 규칙 병합
+- settings.json에 hooks 등록
+
+**Python 없어도 됩니다.** AI가 직접 파일을 복사하고 설정을 수정합니다.
+
+### 방법 2: 직접 설치
+
+Python 3.8+ 필요.
 
 **Mac/Linux:**
 ```bash
 git clone https://github.com/ez-claude/ez-harness.git
 cd ez-harness
-chmod +x install.sh
-./install.sh
+bash install.sh
 ```
 
 **Windows (PowerShell):**
@@ -203,29 +219,9 @@ cd ez-harness
 git이 없으면 [ZIP 다운로드](https://github.com/ez-claude/ez-harness/archive/refs/heads/main.zip).
 
 설치 스크립트가 하는 일:
-1. hooks, skills, patterns를 `~/.claude/`에 복사
+1. hooks, skills, patterns, docs를 `~/.claude/`에 복사
 2. CLAUDE.md 규칙을 기존 설정에 병합
 3. hooks를 `~/.claude/settings.json`에 등록
-
-### 수동 설치
-
-#### 핵심만 (역추적 + 검증 흐름 + hooks)
-
-```bash
-cp -r claude-code/hooks/ ~/.claude/hooks/
-# CLAUDE.md를 ~/.claude/CLAUDE.md에 병합
-# settings.json에 hooks 등록은 install.sh 참조
-```
-
-#### 전체
-
-```bash
-cp -r claude-code/rules/ ~/.claude/rules/
-cp -r claude-code/skills/ ~/.claude/skills/
-cp -r claude-code/state/ ~/.claude/state/
-cp -r claude-code/hooks/ ~/.claude/hooks/
-# CLAUDE.md는 기존 파일에 병합 또는 교체
-```
 
 ### Antigravity
 
