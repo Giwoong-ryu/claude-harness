@@ -1,171 +1,169 @@
 # ez-harness
 
-A verification harness for AI-generated code. Catches bugs before they happen.
+AI가 코드를 만들기 전에 조사하고, 설계를 검토하고, 만든 후에 미래 문제를 시뮬레이션합니다.
 
-Works with **Claude Code** and **Antigravity**.
+**Claude Code**와 **Antigravity**에서 동작합니다.
 
-**Core flow: Research -> Plan -> Feasibility Review -> Refinement -> Code -> Verification**
-
-The harness forces AI to research first, plan with implementation specs, debate the design from two opposing perspectives, then verify completed code against "3 months + 10x scale" failure scenarios -- all before deployment.
+**핵심 흐름: 리서치 -> 플랜 -> 타당성 검토 -> 고도화 -> 코딩 -> 검증**
 
 ---
 
-## Why
+## 왜 필요한가
 
-AI code generation has recurring failure patterns:
+AI에게 코드를 맡기면 반복되는 실패 패턴이 있습니다:
 
-- Explaining code from memory without reading files (hallucination)
-- Fixing symptoms only, leaving root cause untouched (surface patch)
-- Writing code without design review, discovering structural issues late
-- Fixing one bug while the same type recurs in other files
-- Adding fallback at symptom location instead of fixing root cause (new bugs)
+- 파일을 읽지 않고 기억으로 설명하다가 틀림 (할루시네이션)
+- 증상만 고치고 근본 원인은 그대로 둠 (증상 패치)
+- 설계 검토 없이 코드부터 작성해서 나중에 구조 문제 발견
+- 한 곳의 버그를 고치면 같은 유형이 다른 곳에서 재발
+- 근본 원인이 아닌 증상 위치에 fallback만 추가 (새 버그 발생)
 
-This harness structurally blocks these patterns.
+이 하네스는 이 패턴들을 구조적으로 차단합니다.
 
-Reference: [CodeRabbit 2026 Report](https://www.coderabbit.ai/blog/ai-code-review-stats) measured AI-generated code at 1.7x total issues, 2.74x security vulnerabilities, and 2x error handling gaps compared to human code.
+참고: [CodeRabbit 2026 리포트](https://www.coderabbit.ai/blog/ai-code-review-stats)에 따르면 AI 생성 코드는 인간 대비 전체 이슈 1.7배, 보안 취약점 2.74배, 에러 핸들링 미흡 2배입니다.
 
 ---
 
-## Components
+## 구성요소
 
-| Stage | Name | Role | Trigger |
-|-------|------|------|---------|
-| 0 | **Reverse Trace** | Confirm bug root cause before fix | Error/bug keyword detected |
-| 1 | **GATE** | Load patterns, output related warnings | Once before code |
-| 2 | **Risk Assessment** | Score 8 risk factors -> LOW/MID/HIGH | Before code |
-| 3 | **Research** | WebSearch/Context7 for latest info | MID+ risk |
-| 4 | **DMAD Debate** | Designer vs User perspective Q&A | MID+ risk |
-| 5 | **Implementation Spec** | File-level function/change scope + completion criteria | After DMAD |
-| 6 | **sim** | 3 months + 10x failure simulation with P0/P1/P2 grading | MID+ risk, after code |
-| 7 | **smartLoop** | Restart from failure-specific minimal point | sim/Check failure |
+| 단계 | 이름 | 역할 | 트리거 |
+|------|------|------|--------|
+| 0 | **역추적** | 버그 근본 원인 확정 후 수정 | 에러/버그 키워드 감지 |
+| 1 | **GATE** | 패턴 DB 로드, 관련 경고 출력 | 코드 생성 전 1회 |
+| 2 | **위험도 판단** | 8요소 채점 -> LOW/MID/HIGH | 코드 전 |
+| 3 | **리서치** | 최신 라이브러리, 베스트 프랙티스 조사 | MID+ 위험도 |
+| 4 | **DMAD 토론** | 설계자 vs 사용자 관점 문답 | MID+ 위험도 |
+| 5 | **구현 명세** | 파일/함수 범위 + 완료 기준 작성 | DMAD 후 |
+| 6 | **sim** | 3개월+10배 실패 시뮬레이션 (P0/P1/P2) | MID+ 위험도, 코드 후 |
+| 7 | **smartLoop** | 실패 유형별 최소 지점에서 재시작 | sim/Check 실패 시 |
 
-### Risk Assessment (8 factors)
+### 위험도 판단 (8요소 채점)
 
-Instead of simple file count, risk is scored across 8 factors:
+단순 파일 수가 아니라 8개 요소로 채점합니다:
 
-| Factor | Condition | Score |
-|--------|-----------|-------|
-| File count | 3-5: +1, 6-9: +2, 10+: +3 | 0-3 |
-| New dependency | New library/package | +1 |
-| DB/Schema | Migration, table changes | +2 |
-| Auth/Security | Auth, permissions, tokens | +2 |
-| API contract | Endpoint add/change | +1 |
-| External integration | 3rd party API, webhook | +1 |
-| New user-facing feature | New UI, new workflow | +1 |
-| Existing code deletion | File delete, function replace | +1 |
+| 요소 | 조건 | 점수 |
+|------|------|------|
+| 파일 수 | 3-5: +1, 6-9: +2, 10+: +3 | 0-3 |
+| 신규 의존성 | 새 라이브러리/패키지 추가 | +1 |
+| DB/스키마 | 마이그레이션, 테이블 변경 | +2 |
+| 인증/보안 | auth, 권한, 토큰, 암호화 | +2 |
+| API 계약 | 엔드포인트 추가/변경 | +1 |
+| 외부 연동 | 3rd party API, webhook | +1 |
+| 신규 사용자 기능 | 새 UI, 새 워크플로우 | +1 |
+| 기존 코드 삭제/교체 | 파일 삭제, 함수 교체 | +1 |
 
-**0-1 = LOW** (code directly), **2-3 = MID** (research + debate + sim), **4+ = HIGH** (full pipeline with 2 rounds)
+**0-1 = LOW** (바로 코딩), **2-3 = MID** (리서치 + 토론 + sim), **4+ = HIGH** (풀 파이프라인 2라운드)
 
-### Research
+### 리서치
 
-Before DMAD debate, AI investigates latest libraries, best practices, and similar implementations using WebSearch/Context7. Results are saved to `research.md` for reference during implementation.
+DMAD 토론 전에 AI가 최신 라이브러리, 베스트 프랙티스, 유사 구현 사례를 조사합니다. 결과는 `research.md`에 저장되어 구현 시 참조합니다.
 
-### DMAD Debate
+### DMAD 토론
 
-Two opposing perspectives review the design before any code is written:
+코드 작성 전, 두 관점이 문답합니다:
 
-**Designer (forward):** Simpler way? Clash with existing? Most dangerous assumption? Code duplication? Scattered code?
+**설계자 (순방향):** 더 단순한 방법? 기존 코드와 충돌? 가장 위험한 가정? 코드 중복? 코드가 흩어지나?
 
-**User (reverse):** Can first-timer use it? Natural behavior? Self-recoverable? Silent error swallowing?
+**사용자 (역방향):** 처음 보는 사람이 쓸 수 있나? 자연스럽게 동작하나? 실패 시 복구 가능한가? 에러가 조용히 삼켜지는 곳은?
 
-Key rules:
-- Read all target files before debate starts
-- Cite code as `filename:line:content` -- claims without citations forbidden
-- No full agreement between roles; defend with evidence
+핵심 규칙:
+- 토론 시작 전 변경 대상 파일 전부 Read 필수
+- 문제 제기 시 `파일명:라인: 코드내용` 형식으로 직접 인용
+- 인용 없는 주장 금지 (오독 할루시네이션 전파 차단)
 
-Why the citation rule matters: [`docs/dmad-false-positive-analysis.md`](claude-code/docs/dmad-false-positive-analysis.md)
+인용 규칙이 왜 필요한지: [`docs/dmad-false-positive-analysis.md`](claude-code/docs/dmad-false-positive-analysis.md)
 
-### Implementation Spec
+### 구현 명세
 
-After DMAD consensus, a spec is written before coding:
-- File-level function/change scope with research references
-- Completion criteria (PASS/FAIL gradable)
-- sim uses these criteria for grading
+DMAD 합의 후, 코딩 전에 명세를 작성합니다:
+- 파일별 함수/변경 범위 + 리서치 참조
+- 완료 기준 (PASS/FAIL 채점 가능한 형태)
+- sim이 이 완료 기준으로 채점
 
-### sim (Long-term Failure Simulation)
+### sim (장기 실패 시뮬레이션)
 
-The biggest differentiator. Catches bugs that haven't happened yet.
+가장 큰 차별점. **아직 발생하지 않은 버그를 배포 전에 잡습니다.**
 
 ```
-S1. "3 months + 10x scale" simulation - trace code line by line
-    - Tag findings: [P0] Blocker, [P1] Must-fix, [P2] Improvement
-    - Check for existing code collision (new raise/return caught by existing except/if)
-    - Grade against completion criteria from implementation spec
-S2. Root cause loop - "Must something else be fixed first?" -> down to lowest layer
-S3. Fix location verification: S2 root cause = S3 fix location (mismatch = fix forbidden)
-    - fallback pattern forbidden: no symptom bypass, root cause fix only
+S1. "3개월 후 + 10배 규모" 시뮬레이션 — 코드를 한 줄씩 따라가며 터지는 곳 찾기
+    - [P0] 블로커 / [P1] 필수수정 / [P2] 개선 태그
+    - 기존 코드 충돌: 새 raise/return이 기존 except/if에 잡히는지 확인
+    - 구현 명세의 완료 기준으로 채점
+S2. 근본 원인 루프 — "이걸 고치려면 다른 걸 먼저 고쳐야 하나?" → 최하위 레이어까지
+S3. 수정 위치 강제 검증: S2 근본 원인 위치 = S3 수정 위치 (불일치 시 수정 금지)
+    - fallback 패턴 금지: 증상 우회 차단, 근본 원인만 수정
 ```
 
-`/sim` can be invoked manually anytime.
+코드를 잘 모르는 상태에서 AI에게 맡길 때 특히 유용합니다. AI가 표면 증상만 고치고 끝내는 패턴을 구조적으로 차단합니다.
+
+`/sim`으로 언제든 수동 실행 가능합니다.
 
 ### smartLoop
 
-On failure, restarts from the minimal point instead of full re-run:
+문제가 해결될 때까지 최대 3회 반복. 전체를 처음부터 재시작하지 않고 실패 유형별 최소 지점에서 재시작합니다.
 
-| Failure type | Restart point | Token cost |
-|-------------|---------------|------------|
-| lint error | Direct fix only | ~50 |
-| Build failure | Reverse trace only | ~70 |
-| sim FAIL | sim S2 restart | ~150 |
-| Design flaw | Full restart | ~500 |
+| 실패 유형 | 재시작 지점 |
+|----------|------------|
+| lint 오류 | 직접 수정만 |
+| 빌드 실패 | 역추적만 재실행 |
+| sim FAIL | sim S2부터 |
+| 설계 결함 | 전체 재시작 |
 
-Max 3 iterations. Reports to user after max.
-
----
-
-## Hooks (Optional Auto-protection)
-
-The `hooks/` folder contains two Python scripts that provide automatic protection:
-
-| Hook | Event | Function |
-|------|-------|----------|
-| `gate-check.py` | PreToolUse (Write/Edit) | Blocks API key hardcoding, warns on repeated mistake patterns |
-| `smart_gate.py` | UserPromptSubmit | Injects relevant pattern warnings per message |
-
-These are **optional** -- the harness works without them. The hooks add automated guardrails.
-
-Install via `install.sh` (Mac/Linux) or `install.ps1` (Windows) which registers hooks in `~/.claude/settings.json`.
+3회 후에도 실패 시 사용자에게 보고하고 승인을 기다립니다.
 
 ---
 
-## File Structure
+## Hooks (선택 — 자동 보호)
+
+`hooks/` 폴더에 Python 스크립트 2개가 자동 보호를 제공합니다:
+
+| Hook | 이벤트 | 기능 |
+|------|--------|------|
+| `gate-check.py` | PreToolUse (Write/Edit) | API 키 하드코딩 차단 + 반복 실수 경고 |
+| `smart_gate.py` | UserPromptSubmit | 관련 패턴 자동 경고 |
+
+**선택사항**입니다. 하네스는 hooks 없이도 동작합니다. hooks는 추가 안전장치.
+
+`install.sh`/`install.ps1`로 설치하면 `~/.claude/settings.json`에 자동 등록됩니다.
+
+---
+
+## 파일 구조
 
 ```
 ez-harness/
-├── claude-code/                         # Claude Code version
-│   ├── CLAUDE.md                        # Entry point (risk-based verification flow)
+├── claude-code/                         # Claude Code 버전
+│   ├── CLAUDE.md                        # 시작점 (위험도 기반 검증 흐름)
 │   ├── hooks/
-│   │   ├── gate-check.py               # PreToolUse: API key block + pattern warning
-│   │   └── smart_gate.py               # UserPromptSubmit: relevant pattern injection
+│   │   ├── gate-check.py               # API 키 차단 + 패턴 경고
+│   │   └── smart_gate.py               # 관련 패턴 자동 주입
 │   ├── state/
-│   │   ├── routing.json                 # DMAD roles + smartLoop + triggers
-│   │   └── patterns.json               # Pattern DB (grows with use)
+│   │   ├── routing.json                 # DMAD 역할 + smartLoop + 트리거
+│   │   └── patterns.json               # 패턴 DB (사용할수록 축적)
 │   ├── rules/
-│   │   ├── eazycheck.md                # GATE + Risk + Research + DMAD + sim + Check
-│   │   └── pattern-system.md            # Pattern accumulation (3-Phase)
+│   │   ├── eazycheck.md                # GATE + 위험도 + 리서치 + DMAD + sim
+│   │   └── pattern-system.md           # 패턴 축적 시스템 (3Phase)
 │   ├── skills/
-│   │   └── sim/SKILL.md                 # /sim failure simulation procedure
+│   │   └── sim/SKILL.md                 # /sim 실패 시뮬레이션 절차
 │   └── docs/
 │       └── dmad-false-positive-analysis.md
 │
-├── antigravity/                         # Antigravity version
-│   ├── RULES.md                         # Global rules (reverse trace + GATE + DMAD + sim + smartLoop)
+├── antigravity/                         # Antigravity 버전
+│   ├── RULES.md                         # 전역 규칙 (역추적 + GATE + DMAD + sim + smartLoop)
 │   └── .agents/
-│       ├── workflows/
-│       │   └── sim.md                   # /sim workflow (S1->S2->S3)
-│       └── skills/
-│           └── sim/SKILL.md             # sim auto-detect skill
+│       ├── workflows/sim.md             # /sim 워크플로우
+│       └── skills/sim/SKILL.md          # sim 스킬
 │
-├── install.sh                           # Mac/Linux installer
-├── install.ps1                          # Windows installer
-└── ez-harness.html                      # Landing page
+├── install.sh                           # Mac/Linux 설치
+├── install.ps1                          # Windows 설치
+└── ez-harness.html                      # 소개 페이지
 ```
 
 ---
 
-## Installation
+## 설치
 
-### Quick Install (recommended)
+### 자동 설치 (권장)
 
 **Mac/Linux:**
 ```bash
@@ -182,65 +180,64 @@ cd ez-harness
 .\install.ps1
 ```
 
-The installer:
-1. Copies hooks, skills, and patterns to `~/.claude/`
-2. Merges CLAUDE.md rules into your existing config
-3. Registers hooks in `~/.claude/settings.json`
+git이 없으면 [ZIP 다운로드](https://github.com/ez-claude/ez-harness/archive/refs/heads/main.zip).
 
-### Manual Install
+설치 스크립트가 하는 일:
+1. hooks, skills, patterns를 `~/.claude/`에 복사
+2. CLAUDE.md 규칙을 기존 설정에 병합
+3. hooks를 `~/.claude/settings.json`에 등록
 
-#### Core only (reverse trace + verification flow)
+### 수동 설치
 
-Merge `claude-code/CLAUDE.md` into `~/.claude/CLAUDE.md`.
+#### 핵심만 (역추적 + 검증 흐름)
 
-#### Full
+`claude-code/CLAUDE.md`를 `~/.claude/CLAUDE.md`에 병합.
+
+#### 전체
 
 ```bash
 cp -r claude-code/rules/ ~/.claude/rules/
 cp -r claude-code/skills/ ~/.claude/skills/
 cp -r claude-code/state/ ~/.claude/state/
 cp -r claude-code/hooks/ ~/.claude/hooks/
-# CLAUDE.md: merge or replace
+# CLAUDE.md는 기존 파일에 병합 또는 교체
 ```
 
 ### Antigravity
 
 ```bash
-cp antigravity/RULES.md {project-root}/RULES.md
-cp -r antigravity/.agents/ {project-root}/.agents/
+cp antigravity/RULES.md {프로젝트루트}/RULES.md
+cp -r antigravity/.agents/ {프로젝트루트}/.agents/
 ```
 
-Adjust paths in rule files to match your environment.
-
 ---
 
-## Changes from v5 to v6.1
+## v5 -> v6.1 변경 내역
 
-| Area | v5 | v6.1 |
+| 항목 | v5 | v6.1 |
 |------|-----|------|
-| Branch criteria | File count (1-2/3-5/6+) | Risk score (8 factors, 0-1/2-3/4+) |
-| Research | None | MID+ risk: WebSearch/Context7 before DMAD |
-| Implementation spec | None | After DMAD: file/function scope + completion criteria |
-| DMAD Designer | 4 questions | 5 questions (+colocation check Q5) |
-| DMAD User | 3 questions | 4 questions (+silent error swallowing Q4) |
-| Self-verification | None | Post-code: predicted vs actual risk comparison |
-| sim findings | Severity listed | P0/P1/P2 priority tags |
-| sim grading | No criteria | Grades against completion criteria from spec |
-| Hooks | None | gate-check.py + smart_gate.py (optional) |
-| Installer | None | install.sh + install.ps1 |
+| 분기 기준 | 파일 수 (1-2/3-5/6+) | 위험도 채점 (8요소, 0-1/2-3/4+) |
+| 리서치 | 없음 | MID+ 위험도: DMAD 전 최신 정보 조사 |
+| 구현 명세 | 없음 | DMAD 후: 파일/함수 범위 + 완료 기준 |
+| DMAD 설계자 | 4개 질문 | 5개 (+코로케이션 Q5) |
+| DMAD 사용자 | 3개 질문 | 4개 (+silent failure Q4) |
+| 자기검증 | 없음 | 코드 후: 위험도 예측 vs 실제 비교 |
+| sim 분류 | 심각도 나열 | P0/P1/P2 우선순위 태그 |
+| sim 채점 | 기준 없음 | 구현 명세의 완료 기준으로 채점 |
+| Hooks | 없음 | gate-check.py + smart_gate.py (선택) |
+| 설치 | 수동 cp | install.sh + install.ps1 |
 
 ---
 
-## Limitations
+## 한계
 
-- Built from operating a single project (Python/FastAPI). Other stacks may need adjustment.
-- DMAD and sim require AI to Read actual files. Effectiveness decreases when context window is insufficient.
-- More rules = more token cost. If the full set is too heavy, use the "Core only" install option.
-- DMAD domain knowledge false positives still occur. ([Details](claude-code/docs/dmad-false-positive-analysis.md))
+- Python/FastAPI 프로젝트에서 운용하며 만든 설정입니다. 다른 스택에서는 조정이 필요할 수 있습니다.
+- DMAD와 sim은 AI가 실제 파일을 Read해야 동작합니다. 컨텍스트 창이 부족하면 효과가 줄어듭니다.
+- DMAD의 도메인 지식 부재 오탐은 여전히 발생합니다. ([상세](claude-code/docs/dmad-false-positive-analysis.md))
 
 ---
 
-## References
+## 참고
 
 - [OpenAI Harness Engineering](https://openai.com/index/harness-engineering/)
 - [Martin Fowler - Exploring Generative AI](https://martinfowler.com/articles/exploring-gen-ai/harness-engineering.html)
