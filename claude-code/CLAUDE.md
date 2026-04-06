@@ -1,104 +1,59 @@
 # EazyCheck Verification Harness
 
-> Add or merge this file into ~/.claude/CLAUDE.md
+> 설치 후 자동 동작. docs/에 상세 규칙, 필요할 때만 Read.
 
 ---
 
-## Core Rules
+## 핵심 규칙
 
-1. **Version lock** - state/versions.json takes priority
-2. **Security** - API keys via environment variables only, no hardcoding
-3. **Verify before record** - If verifiable by tools (paths, versions), verify first
-
----
-
-## Session Start: Required Read
-
-```
-Read: state/routing.json -> Load routing rules
-```
+1. **버전 잠금** - state/versions.json 우선
+2. **보안** - API 키 환경변수만, 하드코딩 금지
+3. **검증 후 기록** - 도구로 확인 가능한 건 도구로 확인 먼저
 
 ---
 
-## Reverse Trace (on bug/error keyword detection)
-
-Trigger: `error, fail, crash, bug, broken, not working, 500, 404`
+## 검증 흐름
 
 ```
-[Reverse Trace]
-Symptom: {error/problem 1 line}
-Path: {what input -> through where -> breaks here}
-Fix location: {root cause location confirmed}
--> Start coding only after fix location is confirmed
-```
+[1] 버그 키워드 감지? → 역추적 (증상→경로→수정위치 확정)
 
-Scope: 1-5 files. 6+ files -> sim S2 covers it.
+[2] GATE: state/patterns.json Read → 관련 패턴 경고
 
----
+[3] 위험도 판단 (8요소 채점, 상세: rules/eazycheck.md)
+    0-1 = LOW / 2-3 = MID / 4+ = HIGH
 
-## Risk-based Verification Flow
+[4] 분기:
+    LOW:  코드 → 완료
+    MID:  Read docs/eazycheck-detail.md
+          → 리서치 → DMAD 1R → 구현명세 → 코드 → 자기검증 → sim 1회
+    HIGH: Read docs/eazycheck-detail.md
+          → 리서치 → DMAD 2R → 구현명세 → 코드 → 자기검증 → sim 루프 2회
 
-```
-[1] Risk Assessment (8 factors, scored)
-    Score risk factors:
-    - File count (3-5: +1, 6-9: +2, 10+: +3)
-    - New dependency (+1)
-    - DB/Schema change (+2)
-    - Auth/Security (+2)
-    - API contract change (+1)
-    - External integration (+1)
-    - New user-facing feature (+1)
-    - Existing code deletion/replacement (+1)
-
-    0-1 = LOW | 2-3 = MID | 4+ = HIGH
-
-[2] Branch by risk:
-    LOW (0-1):
-      Reverse trace (if bug) -> Code -> Self-verify -> Check
-
-    MID (2-3):
-      Reverse trace (if bug) -> Research -> DMAD 1 round -> Implementation spec -> Code -> Self-verify -> sim 1x -> Check
-
-    HIGH (4+):
-      Research -> DMAD 2 rounds -> Implementation spec -> Code -> Self-verify -> sim loop 2x -> Check
-
-[3] DMAD Debate (MID+ risk, new features / complex changes)
-    [Mandatory] Read all target files before starting
-    [Required] Cite code as filename:line:content -- no claims without citation
-    [Designer] Simpler way? Clash with existing code? Most dangerous assumption? Code duplication? Scattered code?
-    [User] Can first-timer use it? Natural behavior? Self-recoverable? Silent error swallowing?
-    Rule: No full agreement, citation-only claims
-
-[4] Implementation Spec (after DMAD, before code)
-    | File | Action | Function/Change scope | Research reference |
-    Completion criteria (PASS/FAIL gradable)
-
-[5] Code
-
-[6] Self-Verification (after code, before sim)
-    Compare predicted risk score vs actual
-    Under-estimate -> WARNING
-
-[7] sim deep (MID+ risk)
-    S1. 3 months + 10x simulation, trace code, tag P0/P1/P2
-    S2. Root cause + grep for same type across codebase
-    S3. Fix -> git commit "[sim] file:line content" -> re-simulate
-
-[8] Check
-    pre-commit / CI / E2E
-
-[9] smartLoop (on Check or sim failure)
-    Failure detected -> restart from minimal point
-    -> Fix -> sim -> Check (max 3 loops)
-    -> 3 failures: report to user + await approval
-    Output: "[Loop N/3] {failure cause} -> restart point"
+[5] 실패 시 smartLoop (최대 3회, 실패 유형별 최소 지점 재시작)
 ```
 
 ---
 
-## Detailed Rules
+## /sim (수동 호출 가능)
 
-- EazyCheck details: `rules/eazycheck.md`
-- sim details: `skills/sim/SKILL.md`
-- Pattern system: `rules/pattern-system.md`
-- Routing: `state/routing.json`
+완성된 코드에 `/sim` → 3개월+10배 상황에서 터지는 곳 찾기.
+S1(시뮬레이션) → S2(근본 원인) → S3(수정+확인). 상세: skills/sim/SKILL.md
+
+---
+
+## 패턴 축적
+
+버그 해결 시 state/patterns.json에 자동 기록. 다음 세션부터 같은 실수 경고.
+상세: docs/pattern-system.md
+
+---
+
+## 상세 규칙 (필요 시 Read)
+
+| 파일 | 용도 | 로드 시점 |
+|------|------|----------|
+| rules/eazycheck.md | 위험도 판단 + 분기 + 역추적 + DMAD 핵심 | 매 세션 (자동) |
+| docs/eazycheck-detail.md | GATE, 리서치, DMAD, 구현명세, sim, Check 상세 | MID+ 작업 시 |
+| docs/pattern-system.md | 패턴 축적 3Phase 상세 | 패턴 축적 시 |
+| skills/sim/SKILL.md | /sim 실패 시뮬레이션 절차 | /sim 호출 시 |
+| state/patterns.json | 패턴 DB | GATE에서 Read |

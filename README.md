@@ -133,7 +133,7 @@ S3. 수정 위치 강제 검증: S2 근본 원인 위치 = S3 수정 위치 (불
 ```
 ez-harness/
 ├── claude-code/                         # Claude Code 버전
-│   ├── CLAUDE.md                        # 시작점 (위험도 기반 검증 흐름)
+│   ├── CLAUDE.md                        # 시작점 (~60줄, 매 세션 자동 로드)
 │   ├── hooks/
 │   │   ├── gate-check.py               # API 키 차단 + 패턴 경고
 │   │   └── smart_gate.py               # 관련 패턴 자동 주입
@@ -141,11 +141,12 @@ ez-harness/
 │   │   ├── routing.json                 # DMAD 역할 + smartLoop + 트리거
 │   │   └── patterns.json               # 패턴 DB (사용할수록 축적)
 │   ├── rules/
-│   │   ├── eazycheck.md                # GATE + 위험도 + 리서치 + DMAD + sim
-│   │   └── pattern-system.md           # 패턴 축적 시스템 (3Phase)
+│   │   └── eazycheck.md                # 위험도 판단 + 분기 규칙 (~70줄, 매 세션)
 │   ├── skills/
-│   │   └── sim/SKILL.md                 # /sim 실패 시뮬레이션 절차
+│   │   └── sim/SKILL.md                 # /sim 실패 시뮬레이션 (/sim 호출 시만)
 │   └── docs/
+│       ├── eazycheck-detail.md          # GATE+리서치+DMAD+sim 상세 (MID+ 시만)
+│       ├── pattern-system.md            # 패턴 축적 3Phase (패턴 작업 시만)
 │       └── dmad-false-positive-analysis.md
 │
 ├── antigravity/                         # Antigravity 버전
