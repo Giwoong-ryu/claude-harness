@@ -1,80 +1,104 @@
-# Claude Verification Harness
+# EazyCheck Verification Harness
 
-> 이 파일을 ~/.claude/CLAUDE.md에 추가하거나 병합해서 사용.
-
----
-
-## 절대 규칙
-
-1. **한글 응답** - 모든 출력은 한글
-2. **버전 잠금** - state/versions.json 우선
-3. **보안 필수** - API 키 환경변수만, 하드코딩 금지
-4. **기록 전 검증** - 도구로 확인 가능한 것은 반드시 도구로 확인 후 기록
+> Add or merge this file into ~/.claude/CLAUDE.md
 
 ---
 
-## 세션 시작 시 강제 Read
+## Core Rules
+
+1. **Version lock** - state/versions.json takes priority
+2. **Security** - API keys via environment variables only, no hardcoding
+3. **Verify before record** - If verifiable by tools (paths, versions), verify first
+
+---
+
+## Session Start: Required Read
 
 ```
-Read: state/routing.json → 라우팅 규칙 로드
+Read: state/routing.json -> Load routing rules
 ```
 
 ---
 
-## 역추적 (버그/에러 키워드 감지 시)
+## Reverse Trace (on bug/error keyword detection)
 
-트리거: `에러, 오류, 안되, 안됨, 문제, 실패, 버그, 500, 404, crash, fail`
+Trigger: `error, fail, crash, bug, broken, not working, 500, 404`
 
 ```
-[역추적]
-증상: {에러/문제 1줄}
-경로: {어떤 입력 → 어디를 거쳐 → 여기서 터짐}
-수정 위치: {근본 원인 위치 확정}
-→ 수정 위치 확정 후 코드 작성
+[Reverse Trace]
+Symptom: {error/problem 1 line}
+Path: {what input -> through where -> breaks here}
+Fix location: {root cause location confirmed}
+-> Start coding only after fix location is confirmed
 ```
 
-적용 범위: 1-5 파일. 6+ 파일은 sim S2가 커버.
+Scope: 1-5 files. 6+ files -> sim S2 covers it.
 
 ---
 
-## 파일 수에 따른 검증 흐름
+## Risk-based Verification Flow
 
 ```
-[1] 파일 수 판단
-    1-2개: 역추적(버그시) → 코드 → Check
-    3-5개 + 신규기능/복합수정: 역추적(버그시) → DMAD 1라운드 → 코드 → sim 1회 → Check
-    3-5개 + 설정/배포: 역추적(버그시) → 코드 → sim 1회 → Check
-    6개+: DMAD 2라운드 → 코드 → sim 루프 2회 → Check
+[1] Risk Assessment (8 factors, scored)
+    Score risk factors:
+    - File count (3-5: +1, 6-9: +2, 10+: +3)
+    - New dependency (+1)
+    - DB/Schema change (+2)
+    - Auth/Security (+2)
+    - API contract change (+1)
+    - External integration (+1)
+    - New user-facing feature (+1)
+    - Existing code deletion/replacement (+1)
 
-[2] DMAD 토론 (3+ 파일, 신규기능/복합수정)
-    [강제] 토론 시작 전 변경 대상 파일 전부 Read
-    [필수] 문제 제기 시 파일명:라인: 코드내용 직접 인용
-    [설계자] 더 단순한 방법? / 기존 코드와 충돌? / 가장 위험한 가정?
-    [사용자] 처음 보는 사람이 쓸 수 있나? / 실패 시 알 수 있나?
-    규칙: 전부 수긍 금지, 인용 없는 주장 금지
+    0-1 = LOW | 2-3 = MID | 4+ = HIGH
 
-[3] 코드 작성
+[2] Branch by risk:
+    LOW (0-1):
+      Reverse trace (if bug) -> Code -> Self-verify -> Check
 
-[4] sim deep (3+ 파일)
-    S1. 3개월+10배 상황에서 코드 추적
-    S2. 근본 원인 + 같은 유형 전체 grep
-    S3. 수정 → git commit "[sim] 파일:라인 내용" → 확인 시뮬레이션
+    MID (2-3):
+      Reverse trace (if bug) -> Research -> DMAD 1 round -> Implementation spec -> Code -> Self-verify -> sim 1x -> Check
 
-[5] Check
+    HIGH (4+):
+      Research -> DMAD 2 rounds -> Implementation spec -> Code -> Self-verify -> sim loop 2x -> Check
+
+[3] DMAD Debate (MID+ risk, new features / complex changes)
+    [Mandatory] Read all target files before starting
+    [Required] Cite code as filename:line:content -- no claims without citation
+    [Designer] Simpler way? Clash with existing code? Most dangerous assumption? Code duplication? Scattered code?
+    [User] Can first-timer use it? Natural behavior? Self-recoverable? Silent error swallowing?
+    Rule: No full agreement, citation-only claims
+
+[4] Implementation Spec (after DMAD, before code)
+    | File | Action | Function/Change scope | Research reference |
+    Completion criteria (PASS/FAIL gradable)
+
+[5] Code
+
+[6] Self-Verification (after code, before sim)
+    Compare predicted risk score vs actual
+    Under-estimate -> WARNING
+
+[7] sim deep (MID+ risk)
+    S1. 3 months + 10x simulation, trace code, tag P0/P1/P2
+    S2. Root cause + grep for same type across codebase
+    S3. Fix -> git commit "[sim] file:line content" -> re-simulate
+
+[8] Check
     pre-commit / CI / E2E
 
-[6] 루프 (Check 실패 또는 sim FAIL 시)
-    실패 감지 → 역추적 재실행 (근본 원인 재확인)
-    → 수정 → sim → Check (최대 3회)
-    → 3회 후에도 실패: 사용자에게 보고 + 승인 대기
-    출력: "[루프 N/3] {실패 원인} → 재역추적"
+[9] smartLoop (on Check or sim failure)
+    Failure detected -> restart from minimal point
+    -> Fix -> sim -> Check (max 3 loops)
+    -> 3 failures: report to user + await approval
+    Output: "[Loop N/3] {failure cause} -> restart point"
 ```
 
 ---
 
-## 상세 규칙
+## Detailed Rules
 
-- DMAD 상세: `rules/eazycheck-v5.md`
-- sim 상세: `skills/sim/SKILL.md`
-- 패턴 시스템: `rules/pattern-system.md`
-- 라우팅: `state/routing.json`
+- EazyCheck details: `rules/eazycheck.md`
+- sim details: `skills/sim/SKILL.md`
+- Pattern system: `rules/pattern-system.md`
+- Routing: `state/routing.json`

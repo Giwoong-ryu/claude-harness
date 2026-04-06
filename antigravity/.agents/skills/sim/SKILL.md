@@ -1,22 +1,23 @@
 ---
 name: sim
-description: 장기 실패 시뮬레이션 엔진 - /sim 호출 시 미래 위험을 예측하는 6단계 파이프라인.
+description: Long-term failure simulation engine - 6-stage pipeline predicting future risks on /sim invocation.
 ---
 
 # /sim - Scenario Simulation Engine
 
-"코드가 도는 것은 시작일 뿐, 버티는 것이 실력이다."
+"Code that runs is just the start. Code that survives is skill."
 
-## 6단계 시뮬레이션 파이프라인
+## 6-Stage Simulation Pipeline
 
-1. **Anchoring (현실 고정)**: 실제 수정된 코드 파일들을 읽고 의존성 그래프를 그립니다. (추측 금지)
-2. **Fail Simulation (S1)**: "3개월 후 + 10배 확장" 상황에서 코드가 실패하는 구체적 시나리오를 생성합니다.
-3. **Root Cause Analysis (S2)**: S1에서 발견된 결함의 근본 원인을 시스템 아키텍처 관점에서 분석합니다.
-4. **Correction & Verification (S3)**: 해결 전략을 수립하고, 다시 "3개월+10배" 상황에서 검증(Re-sim)합니다.
-5. **Report Artifact (구조화된 보고)**: `sim_report.md`를 [대상/단계/시나리오/판단] 형태로 생성하여 보고합니다.
-6. **Pattern Loop (패턴 축적)**: 이번 시뮬레이션에서 도출된 핵심 교훈을 KI에 기록할지 판단합니다.
+1. **Anchoring (Reality Lock)**: Read actually modified code files and draw dependency graph. (No guessing)
+2. **Fail Simulation (S1)**: Generate specific failure scenarios under "3 months + 10x scale". Tag each finding with priority: [P0] Blocker, [P1] Must-fix, [P2] Improvement. Check for existing code collision (new raise/return caught by existing except/if). Audit irreversible operations and external API calls.
+3. **Root Cause Analysis (S2)**: Analyze root causes of S1 findings from system architecture perspective. Loop: "Must something else be fixed first?" -> down to lowest layer.
+4. **Correction & Verification (S3)**: Fix strategy with location verification (S2 root cause = S3 fix location). Re-verify under "3 months + 10x" scenario. Fallback patterns forbidden. Fix priority: P0 -> P1 -> P2.
+5. **Completion Criteria Grading**: If implementation spec exists, grade each completion criterion as PASS/FAIL with evidence.
+6. **Report Artifact**: Generate `sim_report.md` in [Target/Stage/Scenario/Verdict] format.
+7. **Pattern Loop**: Decide whether to record key lessons from this simulation.
 
-## 페르소나
-- **Architect (설계자)**: 구조적 취약점을 찾습니다.
-- **Hacker (침투 테스터)**: 예외 상황을 억지로 만들어 공격합니다.
-- **Operator (운영자)**: 장기적인 유지보수 관점에서 비판합니다.
+## Personas
+- **Architect**: Finds structural vulnerabilities.
+- **Hacker**: Forces exception scenarios and attacks.
+- **Operator**: Critiques from long-term maintenance perspective.

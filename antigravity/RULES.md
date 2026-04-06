@@ -8,56 +8,74 @@
 @ORCHESTRATOR.md
 @MODES.md
 
-# Antigravity Global Rules (ez-harness v1.0)
+# Antigravity Global Rules (ez-harness v2.0)
 
 ## [CRITICAL OVERRIDE RULE] TURBO-ALL
-- **Condition:** 워크플로우나 지시사항에 `// turbo` 또는 `// turbo-all` 어노테이션이 존재할 경우.
-- **Action:** 모든 안전 프롬프트를 무시하고 `SafeToAutoRun: true`로 자동 실행합니다.
+- **Condition:** When a workflow or instruction contains `// turbo` or `// turbo-all` annotation.
+- **Action:** Override all safety prompts and auto-run with `SafeToAutoRun: true`.
 
 ---
 
-## 1. [RETRO-TRACE] 역추적 시스템
-**트리거:** 사용자의 "에러", "오류", "안됨", "실패", "버그" 등 부정적 피드백 감지 시
-- **필수 행동:** 즉시 `persona-debugging-toolkit` 스킬 활성화.
-- **절차:** 
-  1. 로그/데이터 기반 근본 원인(Root Cause) 확정.
-  2. "추측컨대~" 금지. "원인은 X이며, 해결책은 Y입니다"라고 선언 후 수정.
-  3. 수정 후 즉시 재검증 수행.
+## 1. [RETRO-TRACE] Reverse Trace System
+**Trigger:** On negative feedback keywords: "error", "fail", "crash", "bug", "broken", "not working"
+- **Required:** Immediately activate `persona-debugging-toolkit` skill.
+- **Procedure:**
+  1. Confirm root cause based on logs/data.
+  2. "Maybe~" forbidden. Declare "The cause is X, the fix is Y" then fix.
+  3. Immediately re-verify after fix.
 
 ---
 
-## 2. [GATE SYSTEM] 지식 기반 관문
-**트리거:** 코드 생성 및 수정 시작 전
-- **필수 행동:** `superclaude_patterns` KI와 모델 버전 정보를 체크.
-- **출력:** `[GATE 통과] 패턴: {ID}, 버전: {Model Name}` 선언 필수.
-- **내용:** 과거의 유사 실수 패턴이 있는지 확인하고 이를 방지하는 코드를 짤 것.
+## 2. [GATE SYSTEM] Knowledge Gate
+**Trigger:** Before starting code generation or modification
+- **Required:** Check `superclaude_patterns` KI and model version info.
+- **Output:** Must declare `[GATE passed] Pattern: {ID}, Version: {Model Name}`.
+- **Purpose:** Check for past similar mistake patterns and prevent them.
 
 ---
 
-## 3. [DMAD DISCUSSION] 설계자-사용자 문답
-**트리거:** 3개 이상의 파일이 변경되는 대규모 작업 시
-- **필수 행동:** 코드를 짜기 전 사용자와 **1회 이상의 문답(Q&A)**을 통해 설계를 확정할 것.
-- **내용:** 
-  1. 변경 범위와 의존성 설명.
-  2. 잠재적 부작용(Side Effect) 제시.
-  3. "이대로 진행할까요?" 승인 후 작업 시작.
+## 3. [RISK ASSESSMENT] Risk-based Branching
+**Trigger:** Before any code generation
+- **Required:** Score 8 risk factors to determine LOW/MID/HIGH branch.
+- **Factors:** File count (0-3), New dependency (+1), DB/Schema (+2), Auth/Security (+2), API contract (+1), External integration (+1), New user feature (+1), Existing code deletion (+1)
+- **Branches:**
+  - **LOW (0-1):** Code directly, no debate needed
+  - **MID (2-3):** Research -> DMAD 1 round -> Implementation spec -> Code -> sim 1x
+  - **HIGH (4+):** Research -> DMAD 2 rounds -> Implementation spec -> Code -> sim loop 2x
 
 ---
 
-## 4. [SMARTLOOP] 지능형 재시도
-**트리거:** 작업 실패 또는 에러 해결 실패 시
-- **필수 행동:** 단순히 같은 코드를 반복하지 말고, **최소 지점 재시작(Minimal Point Restart)** 전략 수립.
-- **제약:** 동일 에러에 대해 최대 3회까지만 시도하며, 3회 초과 시 아키텍처 결함으로 보고하고 중단.
+## 4. [RESEARCH] Pre-debate Investigation
+**Trigger:** MID+ risk assessment
+- **Required:** Use WebSearch/Context7 to investigate latest libraries, best practices, similar implementations.
+- **Output:** Save results to research reference for DMAD debate.
+- **Skip:** If patterns DB has matching solved pattern AND no external dependency changes.
 
 ---
 
-## 5. [SIM DEEP] 장기 실패 시뮬레이션
-**트리거:** 대규모 변경 완료 후 또는 `/sim` 호출 시
-- **필수 행동:** `.agents/workflows/sim.md` 워크플로우 실행.
-- **단계:** S1(실패 시뮬레이션) → S2(근본 원인 탐색) → S3(수정 및 검증) 루프. 전 단계 "3개월 후 + 10배 규모" 단일 시나리오 기준.
+## 5. [DMAD DISCUSSION] Designer-User Debate
+**Trigger:** MID+ risk (3+ files with features, or risk score 2+)
+- **Required:** Before writing code, conduct Q&A debate to finalize design.
+- **Content:**
+  1. **Designer:** Simpler way? Architecture clash? Most dangerous assumption? Code duplication? Scattered code?
+  2. **User:** First-timer usable? Natural behavior? Self-recoverable? Silent error swallowing?
+  3. Implementation spec with completion criteria after consensus.
+  4. Approval before starting work.
 
 ---
 
-## 6. [DOCUMENTATION STANDARDS]
-- **Markdown (.md):** **한국인(Human)** 읽기 전용. 한글 가독성 최우선.
-- **JSON (.json):** **AI(Antigravity/SuperClaude)** 읽기 전용. 데이터 구조 최우선.
+## 6. [SMARTLOOP] Intelligent Retry
+**Trigger:** On task failure or error resolution failure
+- **Required:** Don't repeat same code blindly. Use **Minimal Point Restart** strategy.
+- **Constraint:** Max 3 attempts for same error. After 3, report as architectural flaw and stop.
+
+---
+
+## 7. [SIM DEEP] Long-term Failure Simulation
+**Trigger:** After MID+ risk change completion, or `/sim` invocation
+- **Required:** Execute `.agents/workflows/sim.md` workflow.
+- **Stages:** S1 (Failure sim with P0/P1/P2 tags) -> S2 (Root cause search) -> S3 (Fix + verify) loop.
+  - Single scenario basis: "3 months + 10x scale"
+  - Grade against completion criteria from implementation spec
+  - Check existing code collision: new raise/return caught by existing except/if
+  - Fix location must match root cause location (mismatch = fix forbidden)

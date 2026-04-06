@@ -1,200 +1,217 @@
 ---
 name: sim
-description: 장기 실패 시뮬레이션 - 완성된 코드를 3개월+10배 상황에서 따라가며 터지는 곳을 찾고, 근본 원인을 파악하고, 수정 후 재검증
+description: Long-term failure simulation - Trace completed code under "3 months + 10x scale" to find breaking points, identify root causes, fix and re-verify
 user-invocable: true
 ---
 
-# /sim - 장기 실패 시뮬레이션
+# /sim - Long-term Failure Simulation
 
-> "적용 후 장기 시뮬레이션 돌려서 문제점 및 보완점 체크하고 수정 후 정리해줘"
-> 이 한 문장이 작동시키는 3단계 실패 시뮬레이션 루프.
+> "Run a long-term simulation, check for issues and improvements, fix them, and summarize."
+> This single sentence activates the 3-stage failure simulation loop.
 
-## 시스템 내 위치
+## Position in the System
 
 ```
-[3+ 파일 변경]
-토론 (코드 전, DMAD 문답) -> 코드 작성 -> sim deep (코드 후, 여기)
+[MID+ risk change]
+Research -> DMAD (pre-code debate) -> Implementation spec -> Code -> Self-verify -> sim deep (post-code, here)
 
-[수동 호출]
-/sim -> 언제든 실행 가능 (파일 수 무관, 코드 전후 무관)
+[Manual invocation]
+/sim -> Can run anytime (regardless of file count or code stage)
 ```
 
-### 토론과 역할 분리
+### Role Separation from DMAD
 
-| 구분 | 토론 (코드 전) | /sim (코드 후) |
-|------|--------------|---------------|
-| 대상 | 설계안 (코드 없음) | 완성된 코드 (실제 파일) |
-| 방식 | DMAD 문답 (설계자 vs 사용자) | 실패 시뮬레이션 (코드를 따라가며 터지는 곳 찾기) |
-| 질문 | 더 단순한 방법? 기존과 충돌? 위험한 가정? | 3개월+10배에서 어디서 터지나? 근본 원인은? |
-| 성격 | 방향 검증 (이걸 만들어야 하나?) | 구현 검증 (만든 게 실제로 버티나?) |
+| Aspect | DMAD (pre-code) | /sim (post-code) |
+|--------|-----------------|-------------------|
+| Target | Design proposal (no code yet) | Completed code (actual files) |
+| Method | DMAD Q&A (Designer vs User) | Failure simulation (trace code for breaking points) |
+| Questions | Simpler way? Clash with existing? Dangerous assumption? | Where does it break at 3 months + 10x? Root cause? |
+| Nature | Direction verification (should we build this?) | Implementation verification (does what we built survive?) |
 
-## 학술 근거
+## Academic Basis
 
-| 기법 | 출처 | 적용 |
-|------|------|------|
-| Chain-of-Verification (CoVe) | Meta, arxiv:2309.11495 | S2: 발견한 문제가 실제로 발생하는지 독립 검증 |
-| Reflexion | NeurIPS 2023, arxiv:2303.11366 | S3: 수정 → 재시뮬레이션 루프 |
-| Intrinsic Self-Critique | Google DeepMind 2025, arxiv:2512.24103 | S1: 시뮬레이션 중 자기 추론 비평 |
+| Technique | Source | Application |
+|-----------|--------|-------------|
+| Chain-of-Verification (CoVe) | Meta, arxiv:2309.11495 | S2: Independent verification that found issues actually occur |
+| Reflexion | NeurIPS 2023, arxiv:2303.11366 | S3: Fix -> re-simulate loop |
+| Intrinsic Self-Critique | Google DeepMind 2025, arxiv:2512.24103 | S1: Self-critique during simulation reasoning |
 
-## 자동 트리거
+## Auto-trigger
 
-| 조건 | 동작 |
-|------|------|
-| 3+ 파일 변경 완료 | 토론 후 코드 작성 후 자동 실행 |
-| `/sim` 직접 호출 | 전체 파이프라인 실행 |
-| "시뮬레이션", "장기 테스트" | /sim 제안 |
+| Condition | Action |
+|-----------|--------|
+| MID+ risk change completed | Auto-run after code + self-verify |
+| `/sim` direct invocation | Full pipeline execution |
+| "simulation", "long-term test" | Suggest /sim |
 
-### 생략 조건
-- 단순 버그 수정 (1-2 파일)
-- 스타일/포맷 수정
-- 문서/테스트만 변경
+### Skip conditions
+- Simple bug fix (1-2 files, LOW risk)
+- Style/format-only changes
+- Documentation/test-only changes
 
 ---
 
-## 3단계 실패 시뮬레이션
+## 3-Stage Failure Simulation
 
-### S1: 실패 시뮬레이션 (코드를 따라간다)
+### S1: Failure Simulation (trace the code)
 
-변경된 코드를 실제로 Read한 뒤, "3개월 후 + 규모 10배" 상황을 설정하고 코드를 한 줄씩 따라가며 터지는 지점을 찾는다.
+Read the changed code, set a "3 months + 10x scale" scenario, and trace code line by line to find breaking points.
 
 ```
-[S1] 실패 시뮬레이션
+[S1] Failure Simulation
 
-[준비] 변경된 파일 + 의존 파일 실제 Read (추측 금지)
+[Preparation] Read changed files + dependency files (no guessing)
 
-[상황 설정] "3개월 후, 사용자/데이터 10배"
-  - 이 함수에 요청이 들어온다
-  - 이 변수가 이 값이 된다
-  - 여기서 이 조건이 안 맞아서 터진다
+[Scenario] "3 months later, users/data 10x"
+  - This function receives this request
+  - This variable becomes this value
+  - Here, this condition fails and breaks
 
-[추적 대상]
-  - 하드코딩된 값 (확장자, 모델명, 경로, 인코딩)
-  - 의존성 변화 (API 버전, 라이브러리, 파일 형식)
-  - 규모 한계 (메모리, 처리 시간, 동시 접속)
-  - 환경 차이 (OS, 인코딩, 권한)
+[Tracking targets]
+  - Hardcoded values (extensions, model names, paths, encoding)
+  - Dependency changes (API versions, libraries, file formats)
+  - Scale limits (memory, processing time, concurrent connections)
+  - Environment differences (OS, encoding, permissions)
+  - Irreversible operations (deletes, external API calls with side effects)
+  - Existing code collision: new raise/return caught by existing except/if in same function
+
+[Priority tagging] -- tag each finding immediately
+  [P0] Blocker - security breach, data loss, crash, irreversible damage
+  [P1] Must-fix - functional defect, resource leak, data inconsistency
+  [P2] Improvement - edge case, style, non-critical optimization
+
+[Completion criteria grading]
+  If implementation spec has completion criteria:
+  | # | Criterion | Scenario | Result | Evidence |
+  Grade each criterion as PASS/FAIL with specific evidence
 ```
 
-**규칙:**
-- 반드시 실제 코드를 Read한 후 시뮬레이션 시작
-- "터질 수 있다" (추상적) 금지 → "이 파일 N번째 줄에서 이 입력이면 터진다" (구체적)
-- 코드를 따라가는 과정을 보여줘야 함 (함수 호출 순서, 변수 값 변화)
+**Rules:**
+- Must Read actual code before starting simulation
+- "Could break" (abstract) forbidden -> "At file:line N, with this input, it breaks" (specific)
+- Show the code-tracing process (function call order, variable value changes)
 
 ---
 
-### S2: 근본 원인 탐색 (왜 터지나 + 같은 유형 전체)
+### S2: Root Cause Search (why it breaks + same type everywhere)
 
-S1에서 발견한 문제의 근본 원인을 파악하고, 같은 유형의 문제가 코드 어디에 더 숨어있는지 전체 탐색한다.
+Identify root cause of S1 findings, then search entire codebase for same pattern type.
 
 ```
-[S2] 근본 원인
+[S2] Root Cause
 
-[근본 원인 분석]
-  - 터진 지점의 표면 원인: {뭐가 터졌나}
-  - 근본 원인 탐색 루프:
-      원인 후보 발견 →
-      "이걸 고치려면 다른 걸 먼저 고쳐야 하는가?"
-        → Yes: 아직 근본 원인 아님. 그 하위 레이어 코드/설정 Read 후 계속
-        → No:  여기가 수정 위치. 탐색 종료
-  - 이 원인이 다른 곳에도 있나? → grep/검색으로 전체 탐색
+[Root cause analysis]
+  - Surface cause of breaking point: {what broke}
+  - Root cause search loop:
+      Candidate cause found ->
+      "To fix this, must something else be fixed first?"
+        -> Yes: Not root cause yet. Read lower-layer code/config, continue
+        -> No:  This is the fix location. Stop searching
+  - Does this cause exist elsewhere? -> grep/search entire codebase
 
-[CoVe 검증]
-  Step 1: "이 문제가 실제로 발생하는가?" 검증 질문 생성
-  Step 2: 발견 내용을 보지 않고 독립적으로 답변 (편향 차단)
-  Step 3: 검증 통과한 항목만 최종 결과에 포함
+[CoVe Verification]
+  Step 1: Generate verification questions: "Does this issue actually occur?"
+  Step 2: Answer independently without seeing findings (bias prevention)
+  Step 3: Only include CoVe-verified items in final results
 
-[출력]
-  | # | 터진 위치 | 근본 원인 | 같은 유형 N건 | 심각도 |
+[Output]
+  | # | Break location | Root cause | Same type N found | Priority |
 ```
 
-**규칙:**
-- 표면 원인에서 멈추지 말 것 → "이걸 고치려면 다른 걸 먼저 고쳐야 하는가?" 루프로 최하위 레이어까지 탐색
-- CoVe 검증 실패한 항목은 보고에서 제외
-- "아마도" 금지 → 확인된 것만 서술
+**Rules:**
+- Don't stop at surface cause -> loop "must something else be fixed first?" down to lowest layer
+- Exclude CoVe verification failures from report
+- "Probably" forbidden -> state only confirmed findings
 
 ---
 
-### S3: 수정 + 확인 시뮬레이션 (루프 최대 2회)
+### S3: Fix + Confirmation Simulation (max 2 loop iterations)
 
-발견된 문제를 수정하고, 수정한 코드로 다시 S1 시뮬레이션을 1회 돌려 확인한다.
+Fix discovered issues and re-run S1 simulation on the fixed code.
 
 ```
-[S3] 수정 + 확인
+[S3] Fix + Confirm
 
-[수정 위치 강제 검증] 코드 작성 전 필수
-  S2 근본 원인 위치: {파일:라인 또는 레이어}
-  S3 수정 위치:     {파일:라인 또는 레이어}
-  → 불일치 시 수정 금지, S2 재탐색
-  → fallback 패턴(if X is None: return default_X) 금지
-     근본 원인 위치 직접 수정만 허용
+[Fix location verification] Required before writing code
+  S2 root cause location: {file:line or layer}
+  S3 fix location:        {file:line or layer}
+  -> Mismatch: fix forbidden, re-search S2
+  -> fallback pattern (if X is None: return default_X) forbidden
+     Only direct root cause fix allowed
 
-[수정]
-  - S2 근본 원인 위치를 직접 수정 (다른 레이어 수정 금지)
-  - 같은 유형 전체 일괄 수정
-  | # | 대상 | 변경 전 | 변경 후 | 근거 |
+[Fix]
+  - Fix S2 root cause location directly (no other-layer fixes)
+  - Fix all same-type instances at once
+  - Priority order: P0 -> P1 -> P2 (P2 at user discretion)
+  | # | Target | Before | After | Rationale |
 
-[확인 시뮬레이션] S1을 다시 1회 실행
-  - 수정한 코드로 같은 상황 재시뮬레이션
-  - 수정이 새로운 문제를 만들지 않는지 확인
-  - regression 체크: 수정 전에 동작하던 기능이 수정 후에도 동작하는지 확인
-    → 수정 범위 외 의존 함수/모듈 호출 경로 추적 (변경 실패율 +30% 방지)
+[Confirmation simulation] Re-run S1 once
+  - Re-simulate same scenario with fixed code
+  - Verify fix doesn't introduce new issues
+  - Regression check: verify pre-fix functionality still works after fix
+    -> Trace dependent function/module call paths outside fix scope
 
-[수정 후 커밋] 수정 내역 git commit 필수
-  → 형식: "[sim] {파일}:{라인} {수정 내용 한줄}"
-  → 예: "[sim] api.py:42 ffprobe 순서 수정 - CoVe 통과"
-  → 여러 파일 수정 시 파일별 1커밋 or 묶어서 1커밋 (판단)
+[Post-fix commit] git commit required
+  -> Format: "[sim] {file}:{line} {fix summary one line}"
+  -> Example: "[sim] api.py:42 fix ffprobe order - CoVe verified"
+  -> Multiple files: per-file commit or bundled (judgment call)
 
-[결과 분기]
-  → 통과: 종료 → 출력 + 패턴 기록
-  → 실패: 사용자에게 보고 + 승인 후 디버깅 모드 전환
+[Result branch]
+  -> Pass: End -> output + pattern record
+  -> Fail: Report to user + await approval -> switch to debugging mode
 ```
 
-**규칙:**
-- 시뮬레이션 루프 최대 2회 (S1 → S2 → S3 → 확인 S1)
-- 2회째도 실패 시 AI가 혼자 계속 고치지 않음 → 사용자 승인 필요
-- 사용자 승인 후 디버깅 5단계로 전환
-- [필수] S3 수정 후 반드시 git commit → 추적 가능성 확보
+**Rules:**
+- Simulation loop max 2 iterations (S1 -> S2 -> S3 -> confirm S1)
+- After 2nd failure, AI does not keep fixing alone -> user approval required
+- After user approval, switch to debugging mode
+- [Required] git commit after S3 fix -> ensure traceability
 
 ---
 
-## 출력 형식
+## Output Format
 
 ```
 ================================================================
-[/sim 실패 시뮬레이션 결과]
+[/sim Failure Simulation Results]
 ================================================================
 
-[대상] {변경 내용 요약}
+[Target] {change summary}
 
-[S1 시뮬레이션]
-  상황: 3개월 후 + 10배 규모
-  읽은 파일: N개
-  추적 경로: 함수A → 함수B → 여기서 터짐
+[S1 Simulation]
+  Scenario: 3 months + 10x scale
+  Files read: N
+  Trace path: FunctionA -> FunctionB -> breaks here
 
-[S2 근본 원인]
-  | # | 터진 위치 | 근본 원인 | 같은 유형 | 심각도 |
-  (CoVe 검증 통과한 항목만)
+[Completion Criteria Grading]
+  | # | Criterion | Result | Evidence |
+  (If implementation spec has completion criteria)
 
-[S3 수정]
-  | # | 대상 | 변경 전 | 변경 후 | 근거 |
+[S2 Root Cause]
+  | # | Break location | Root cause | Same type | Priority |
+  (CoVe-verified items only)
 
-[확인 시뮬레이션] 통과 / 실패 (실패 시 상세)
+[S3 Fix]
+  | # | Target | Before | After | Rationale |
 
-[패턴 기록]
-  - 새 패턴 → patterns.json 추가: {있으면 기재}
-  - 기존 패턴 변형 → 업데이트: {있으면 기재}
-  - 기록 불필요: {일회성이면}
+[Confirmation Simulation] Pass / Fail (details if fail)
 
-[종합] OK / WARN / FAIL (사용자 승인 필요)
+[Pattern Record]
+  - New pattern -> add to patterns.json: {if any}
+  - Existing pattern variant -> update: {if any}
+  - No record needed: {if one-time}
+
+[Summary] OK / WARN / FAIL (user approval needed)
 ================================================================
 ```
 
-## 품질 규칙
+## Quality Rules
 
-- [필수] 실제 파일을 Read한 후에만 시뮬레이션 시작
-- [필수] 코드를 따라가는 과정을 보여줘야 함 (추론 과정 투명)
-- [필수] CoVe 검증 실패한 항목은 보고에서 제외
-- [필수] "아마도", "~일 수 있음" 금지 - 확인된 것만 서술
-- [필수] 2회 루프 후에도 실패 시 사용자 승인 요청
-- [금지] 파일 읽기 없이 추론만으로 시뮬레이션
-- [금지] 표면 땜질만 하고 근본 원인 무시
-- [금지] 같은 유형 탐색 없이 하나만 고치고 종료
+- [Required] Only start simulation after actually reading files
+- [Required] Show code-tracing process (transparent reasoning)
+- [Required] Exclude CoVe verification failures from report
+- [Required] "Probably", "might" forbidden - state only confirmed findings
+- [Required] After 2 loop failures, request user approval
+- [Forbidden] Simulating from reasoning alone without reading files
+- [Forbidden] Surface patch only, ignoring root cause
+- [Forbidden] Fixing one instance without searching for same type

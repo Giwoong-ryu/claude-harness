@@ -1,0 +1,162 @@
+{
+  "solved": [
+    {
+      "id": "api-key-leak",
+      "symptom": "API 키가 코드에 노출됨",
+      "cause": "파일에 API 키 하드코딩 후 git push",
+      "solution": "환경변수(os.getenv) 사용. 노출된 키 즉시 교체",
+      "frequency": "high"
+    },
+    {
+      "id": "file-extension-hardcode",
+      "symptom": "특정 파일 형식에서만 동작, 다른 형식 실패",
+      "cause": "코드에서 .mp3, .srt 등 확장자를 하드코딩",
+      "solution": "os.path.splitext() 사용하여 확장자 무관하게 처리",
+      "frequency": "critical"
+    },
+    {
+      "id": "verify-before-implement",
+      "symptom": "구현 후 기존 코드와 충돌 발견",
+      "cause": "기존 코드/스키마 확인 없이 추측으로 구현 시작",
+      "solution": "READ -> VERIFY -> IMPLEMENT 순서 강제",
+      "frequency": "high"
+    },
+    {
+      "id": "typing-import-missing",
+      "symptom": "NameError: name 'Optional' is not defined",
+      "cause": "typing 모듈에서 Optional 등 임포트 누락",
+      "solution": "from typing import Optional, List, Dict 추가",
+      "frequency": "medium"
+    },
+    {
+      "id": "outdated-model-name",
+      "symptom": "AI API 호출 실패 (404, deprecated)",
+      "cause": "AI 모델명을 학습 데이터 기준으로 사용 (구버전)",
+      "solution": "AI 모델명은 반드시 공식 문서 또는 웹 검색으로 확인",
+      "frequency": "high"
+    },
+    {
+      "id": "partial-implementation-loss",
+      "symptom": "A 기능 추가 후 B 기능 추가 시 A 사라짐",
+      "cause": "전체 파일을 Read하지 않고 부분만 Edit",
+      "solution": "수정 전 항상 Read로 전체 확인",
+      "frequency": "very_high"
+    },
+    {
+      "id": "stdlib-import-inside-try",
+      "symptom": "NameError: name 're' is not defined",
+      "cause": "표준 라이브러리 import를 try-except 블록 안에 넣음",
+      "solution": "표준 라이브러리는 파일 최상단에서 import (try 밖)",
+      "frequency": "medium"
+    },
+    {
+      "id": "windows-encoding-cp949",
+      "symptom": "UnicodeEncodeError 또는 UnicodeDecodeError (cp949)",
+      "cause": "Windows 기본 인코딩 cp949와 UTF-8 충돌",
+      "solution": "PYTHONIOENCODING=utf-8 환경변수 + encoding='utf-8' 명시",
+      "frequency": "high"
+    }
+  ],
+  "preventive_patterns": [
+    {
+      "id": "file-format-change-impact",
+      "trigger": ["형식 추가", "확장자 추가", "파일 형식 변경"],
+      "problem": "확장자가 하드코딩되어 다른 형식 미지원",
+      "solution": "os.path.splitext() 사용하여 확장자 무관하게 처리"
+    },
+    {
+      "id": "ai-api-integration",
+      "trigger": ["Gemini API", "OpenAI API", "Claude API", "AI API"],
+      "problem": "구버전 모델명 사용, 토큰 제한 미고려",
+      "solution": "웹 검색으로 최신 모델 확인 + 토큰 제한 계산 + 에러 처리"
+    },
+    {
+      "id": "ai-model-change",
+      "trigger": ["모델 변경", "모델 통일", "최신 모델"],
+      "problem": "학습 데이터 기준 모델명이 이미 deprecated",
+      "solution": "무조건 웹 검색 필수. 비용/정확도 분석 후 확인"
+    },
+    {
+      "id": "async-task-status",
+      "trigger": ["비동기 작업", "백그라운드 작업", "작업 상태"],
+      "problem": "비동기 작업 시작/완료/실패 시 상태 업데이트 누락",
+      "solution": "시작 전 status='processing', 성공 시 'completed', 실패 시 'failed'"
+    },
+    {
+      "id": "security-blind-spots",
+      "trigger": ["보안", "인증", "권한", "에러 핸들링"],
+      "problem": "기존 권한 코드 검증 없이 복사, 입력만 검색하고 출력 추적 안 함",
+      "solution": "4문장 체크: (1) 이 값이 None이면? (2) 외부에 뭐가 나가지? (3) 공개할 것만 정했나? (4) 내 raise가 어디로 가지?"
+    },
+    {
+      "id": "destructive-command-guard",
+      "trigger": ["git push --force", "rm -rf", "DROP TABLE", "DELETE FROM"],
+      "problem": "되돌릴 수 없는 파괴적 명령 실행",
+      "solution": "main 브랜치 force push 금지, WHERE 없는 DELETE/DROP 금지"
+    },
+    {
+      "id": "multi-file-sync",
+      "trigger": ["규칙 수정", "설정 변경", "config 수정"],
+      "problem": "같은 설정이 여러 파일에 분산되어 한 곳만 수정",
+      "solution": "설정 변경 시 grep으로 모든 사용처 확인 후 일괄 수정"
+    },
+    {
+      "id": "plan-quality-check",
+      "trigger": ["플랜 전환", "이 플랜으로 진행", "Build 시작"],
+      "problem": "플랜에 근본 원인, 품질 기준, 검증 방법 누락",
+      "solution": "시작 전 체크: 근본 원인 명확한가? 품질 기준 구체적인가? 검증 방법 있는가?"
+    }
+  ],
+  "claude_mistakes": [
+    {
+      "id": "partial-implementation-loss",
+      "symptom": "A 기능 추가 후 B 기능 추가 시 A 사라짐",
+      "cause": "전체 파일을 Read하지 않고 부분만 Edit",
+      "solution": "수정 전 항상 Read로 전체 확인",
+      "frequency": "very_high"
+    },
+    {
+      "id": "outdated-documentation-blindly-followed",
+      "symptom": "갑자기 모델명/API가 변경됨",
+      "cause": "문서가 오래되었을 수 있음을 인지 못함",
+      "solution": "AI 모델/API 정보는 반드시 웹 검색으로 최신 정보 확인",
+      "frequency": "high"
+    },
+    {
+      "id": "typing-import-missing",
+      "symptom": "NameError: name Optional/List/Dict is not defined",
+      "cause": "typing 모듈 임포트 누락",
+      "solution": "from typing import Optional, List, Dict 추가",
+      "frequency": "medium"
+    },
+    {
+      "id": "json-array-append-overwrites",
+      "symptom": "JSON 배열에 항목 추가 시 기존 항목 사라짐",
+      "cause": "Edit old_string에 배열 시작부 + 주변 컨텐츠까지 포함",
+      "solution": "배열 끝 항목 뒤에서 삽입",
+      "frequency": "medium"
+    },
+    {
+      "id": "type-value-incomplete-replacement",
+      "symptom": "TypeScript 빌드 오류: type 불일치",
+      "cause": "타입/Enum 값 변경 시 일부 위치 누락",
+      "solution": "값 변경 전 grep으로 모든 사용처 확인",
+      "frequency": "high"
+    },
+    {
+      "id": "stdlib-import-inside-try-block",
+      "symptom": "NameError: name re is not defined",
+      "cause": "표준 라이브러리 import를 try-except 블록 안에 넣음",
+      "solution": "표준 라이브러리는 파일 최상단에서 import (try 밖)",
+      "frequency": "medium"
+    }
+  ],
+  "_meta": {
+    "description": "EazyCheck 패턴 DB. 사용하면서 자동 축적됩니다.",
+    "version": "6.1",
+    "how_to_add": "solved/preventive_patterns/claude_mistakes 배열에 같은 형식으로 추가",
+    "solved_count": 8,
+    "preventive_count": 8,
+    "claude_mistakes_count": 6
+  }
+}
