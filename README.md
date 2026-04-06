@@ -115,12 +115,14 @@ S3. 수정 위치 강제 검증: S2 근본 원인 위치 = S3 수정 위치 (불
 
 ## Hooks (선택 — 자동 보호)
 
-`hooks/` 폴더에 Python 스크립트 2개가 자동 보호를 제공합니다:
+`hooks/` 폴더에 Python 스크립트 4개가 자동 보호와 패턴 축적을 제공합니다:
 
 | Hook | 이벤트 | 기능 |
 |------|--------|------|
 | `gate-check.py` | PreToolUse (Write/Edit) | API 키 하드코딩 차단 + 반복 실수 경고 |
 | `smart_gate.py` | UserPromptSubmit | 관련 패턴 자동 경고 |
+| `pattern_trigger.py` | UserPromptSubmit | 긍정/결정 표현 감지 -> 패턴 분석 트리거 |
+| `precompact_pattern_save.py` | PreCompact | 컨텍스트 압축 전 미처리 패턴 보존 |
 
 **선택사항**입니다. 하네스는 hooks 없이도 동작합니다. hooks는 추가 안전장치.
 
@@ -136,14 +138,31 @@ ez-harness/
 │   ├── CLAUDE.md                        # 시작점 (~60줄, 매 세션 자동 로드)
 │   ├── hooks/
 │   │   ├── gate-check.py               # API 키 차단 + 패턴 경고
-│   │   └── smart_gate.py               # 관련 패턴 자동 주입
+│   │   ├── smart_gate.py               # 관련 패턴 자동 주입
+│   │   ├── pattern_trigger.py          # 긍정/결정 표현 감지 -> 패턴 트리거
+│   │   └── precompact_pattern_save.py  # 압축 전 미처리 패턴 보존
 │   ├── state/
 │   │   ├── routing.json                 # DMAD 역할 + smartLoop + 트리거
 │   │   └── patterns.json               # 패턴 DB (사용할수록 축적)
 │   ├── rules/
 │   │   └── eazycheck.md                # 위험도 판단 + 분기 규칙 (~70줄, 매 세션)
-│   ├── skills/
-│   │   └── sim/SKILL.md                 # /sim 실패 시뮬레이션 (/sim 호출 시만)
+│   ├── skills/                          # 범용 스킬 (16개)
+│   │   ├── sim/SKILL.md                 # /sim 실패 시뮬레이션
+│   │   ├── systematic-debugging/        # 근본 원인 분석
+│   │   ├── writing-plans/               # 멀티스텝 플랜 작성
+│   │   ├── executing-plans/             # 플랜 실행 + 리뷰 체크포인트
+│   │   ├── verification-before-completion/ # 완료 주장 전 검증
+│   │   ├── sequential-thinking/         # 단계별 추론
+│   │   ├── confidence-check/            # 구현 전 자신감 평가
+│   │   ├── brainstorming/               # 창의적 작업 전 탐색
+│   │   ├── dispatching-parallel-agents/ # 병렬 에이전트 디스패치
+│   │   ├── subagent-driven-development/ # 서브에이전트 기반 개발
+│   │   ├── using-git-worktrees/         # Git worktree 격리
+│   │   ├── finishing-a-development-branch/ # 브랜치 완료 가이드
+│   │   ├── receiving-code-review/       # 코드 리뷰 수신
+│   │   ├── requesting-code-review/      # 코드 리뷰 요청
+│   │   ├── test-driven-development/     # TDD
+│   │   └── prompt-engineering/          # 프롬프트 엔지니어링
 │   └── docs/
 │       ├── eazycheck-detail.md          # GATE+리서치+DMAD+sim 상세 (MID+ 시만)
 │       ├── pattern-system.md            # 패턴 축적 3Phase (패턴 작업 시만)
@@ -190,9 +209,13 @@ git이 없으면 [ZIP 다운로드](https://github.com/ez-claude/ez-harness/arch
 
 ### 수동 설치
 
-#### 핵심만 (역추적 + 검증 흐름)
+#### 핵심만 (역추적 + 검증 흐름 + hooks)
 
-`claude-code/CLAUDE.md`를 `~/.claude/CLAUDE.md`에 병합.
+```bash
+cp -r claude-code/hooks/ ~/.claude/hooks/
+# CLAUDE.md를 ~/.claude/CLAUDE.md에 병합
+# settings.json에 hooks 등록은 install.sh 참조
+```
 
 #### 전체
 
@@ -225,7 +248,7 @@ cp -r antigravity/.agents/ {프로젝트루트}/.agents/
 | 자기검증 | 없음 | 코드 후: 위험도 예측 vs 실제 비교 |
 | sim 분류 | 심각도 나열 | P0/P1/P2 우선순위 태그 |
 | sim 채점 | 기준 없음 | 구현 명세의 완료 기준으로 채점 |
-| Hooks | 없음 | gate-check.py + smart_gate.py (선택) |
+| Hooks | 없음 | 4개: gate-check + smart_gate + pattern_trigger + precompact (선택) |
 | 설치 | 수동 cp | install.sh + install.ps1 |
 
 ---

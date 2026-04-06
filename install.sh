@@ -40,16 +40,36 @@ mkdir -p "$CLAUDE_DIR/state"
 # 3. hooks 복사
 cp "$SCRIPT_DIR/hooks/gate-check.py" "$CLAUDE_DIR/hooks/eazycheck-gate.py"
 cp "$SCRIPT_DIR/hooks/smart_gate.py" "$CLAUDE_DIR/hooks/eazycheck-smart-gate.py"
-echo "  hooks 설치 완료"
+cp "$SCRIPT_DIR/hooks/pattern_trigger.py" "$CLAUDE_DIR/hooks/eazycheck-pattern-trigger.py"
+cp "$SCRIPT_DIR/hooks/precompact_pattern_save.py" "$CLAUDE_DIR/hooks/eazycheck-precompact.py"
+echo "  hooks 설치 완료 (4개)"
 
 # 4. skills 복사
-if [ -f "$CLAUDE_DIR/skills/sim/SKILL.md" ]; then
-    echo "  기존 sim/SKILL.md 발견 - 건너뜀 (새 버전은 eazycheck-sim-preset.md로 저장)"
-    cp "$SCRIPT_DIR/skills/sim/SKILL.md" "$CLAUDE_DIR/skills/sim/eazycheck-sim-preset.md"
-else
-    cp "$SCRIPT_DIR/skills/sim/SKILL.md" "$CLAUDE_DIR/skills/sim/SKILL.md"
-    echo "  /sim 스킬 설치 완료"
-fi
+SKILLS="sim systematic-debugging writing-plans executing-plans verification-before-completion sequential-thinking confidence-check brainstorming dispatching-parallel-agents subagent-driven-development using-git-worktrees finishing-a-development-branch receiving-code-review requesting-code-review test-driven-development prompt-engineering"
+SKILLS_INSTALLED=0
+SKILLS_SKIPPED=0
+
+for SKILL_NAME in $SKILLS; do
+    SKILL_SRC="$SCRIPT_DIR/skills/$SKILL_NAME/SKILL.md"
+    SKILL_DST_DIR="$CLAUDE_DIR/skills/$SKILL_NAME"
+    SKILL_DST="$SKILL_DST_DIR/SKILL.md"
+
+    if [ ! -f "$SKILL_SRC" ]; then
+        continue
+    fi
+
+    mkdir -p "$SKILL_DST_DIR"
+
+    if [ -f "$SKILL_DST" ]; then
+        # Existing skill found - save as preset, don't overwrite
+        cp "$SKILL_SRC" "$SKILL_DST_DIR/eazycheck-preset.md"
+        SKILLS_SKIPPED=$((SKILLS_SKIPPED + 1))
+    else
+        cp "$SKILL_SRC" "$SKILL_DST"
+        SKILLS_INSTALLED=$((SKILLS_INSTALLED + 1))
+    fi
+done
+echo "  skills: ${SKILLS_INSTALLED}개 설치, ${SKILLS_SKIPPED}개 기존 유지"
 
 # 5. patterns.json 병합 또는 복사
 if [ -f "$CLAUDE_DIR/state/patterns.json" ]; then
@@ -90,7 +110,9 @@ hooks = settings.setdefault('hooks', {})
 pre = hooks.setdefault('PreToolUse', [])
 pre.append({'matcher': 'Write|Edit|MultiEdit', 'hooks': [{'type': 'command', 'command': '$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-gate.py'}]})
 user = hooks.setdefault('UserPromptSubmit', [])
-user.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-smart-gate.py'}]})
+user.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-smart-gate.py'}, {'type': 'command', 'command': '$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-pattern-trigger.py'}]})
+compact = hooks.setdefault('PreCompact', [])
+compact.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-precompact.py'}]})
 with open('$SETTINGS_FILE', 'w') as f:
     json.dump(settings, f, indent=2, ensure_ascii=False)
 " 2>/dev/null && echo "  settings.json에 hooks 추가 완료" || {
@@ -122,6 +144,21 @@ else
           {
             "type": "command",
             "command": "$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-smart-gate.py"
+          },
+          {
+            "type": "command",
+            "command": "$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-pattern-trigger.py"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$PYTHON_CMD $CLAUDE_DIR/hooks/eazycheck-precompact.py"
           }
         ]
       }
@@ -138,4 +175,6 @@ echo ""
 echo "동작 확인:"
 echo "  - API 키를 코드에 쓰면 자동 차단됩니다"
 echo "  - 과거 실수와 비슷한 작업 시 자동 경고합니다"
+echo "  - 긍정/결정 표현 감지 시 패턴을 자동 축적합니다"
+echo "  - 컨텍스트 압축 전 미처리 패턴을 보존합니다"
 echo "  - /sim 으로 완성된 코드의 미래 문제를 탐지합니다"

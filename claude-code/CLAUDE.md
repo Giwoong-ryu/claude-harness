@@ -17,7 +17,8 @@
 ```
 [1] 버그 키워드 감지? → 역추적 (증상→경로→수정위치 확정)
 
-[2] GATE: state/patterns.json Read → 관련 패턴 경고
+[2] GATE: hooks가 설치되어 있으면 자동 경고 (추가 Read 불필요)
+         hooks 없으면 state/patterns.json Read → 관련 패턴 경고
 
 [3] 위험도 판단 (8요소 채점, 상세: rules/eazycheck.md)
     0-1 = LOW / 2-3 = MID / 4+ = HIGH
@@ -41,9 +42,14 @@ S1(시뮬레이션) → S2(근본 원인) → S3(수정+확인). 상세: skills/
 
 ---
 
-## 패턴 축적
+## 패턴 축적 (자동)
 
-버그 해결 시 state/patterns.json에 자동 기록. 다음 세션부터 같은 실수 경고.
+hooks가 자동으로 패턴을 축적합니다:
+- gate-check: 코드 수정 시 API 키 차단 + 반복 실수 경고
+- smart_gate: 메시지마다 관련 패턴 경고
+- pattern_trigger: 긍정/결정 표현 감지 -> 패턴 분석 트리거
+- precompact: 컨텍스트 압축 전 미처리 패턴 보존
+
 상세: docs/pattern-system.md
 
 ---

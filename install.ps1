@@ -46,16 +46,33 @@ New-Item -ItemType Directory -Force -Path "$ClaudeDir\state" | Out-Null
 # 3. hooks 복사
 Copy-Item "$ScriptDir\hooks\gate-check.py" "$ClaudeDir\hooks\eazycheck-gate.py" -Force
 Copy-Item "$ScriptDir\hooks\smart_gate.py" "$ClaudeDir\hooks\eazycheck-smart-gate.py" -Force
-Write-Host "  hooks 설치 완료"
+Copy-Item "$ScriptDir\hooks\pattern_trigger.py" "$ClaudeDir\hooks\eazycheck-pattern-trigger.py" -Force
+Copy-Item "$ScriptDir\hooks\precompact_pattern_save.py" "$ClaudeDir\hooks\eazycheck-precompact.py" -Force
+Write-Host "  hooks 설치 완료 (4개)"
 
 # 4. skills 복사
-if (Test-Path "$ClaudeDir\skills\sim\SKILL.md") {
-    Write-Host "  기존 sim/SKILL.md 발견 - 건너뜀 (새 버전은 eazycheck-sim-preset.md로 저장)"
-    Copy-Item "$ScriptDir\skills\sim\SKILL.md" "$ClaudeDir\skills\sim\eazycheck-sim-preset.md" -Force
-} else {
-    Copy-Item "$ScriptDir\skills\sim\SKILL.md" "$ClaudeDir\skills\sim\SKILL.md" -Force
-    Write-Host "  /sim 스킬 설치 완료"
+$Skills = @("sim", "systematic-debugging", "writing-plans", "executing-plans", "verification-before-completion", "sequential-thinking", "confidence-check", "brainstorming", "dispatching-parallel-agents", "subagent-driven-development", "using-git-worktrees", "finishing-a-development-branch", "receiving-code-review", "requesting-code-review", "test-driven-development", "prompt-engineering")
+$SkillsInstalled = 0
+$SkillsSkipped = 0
+
+foreach ($SkillName in $Skills) {
+    $SkillSrc = "$ScriptDir\skills\$SkillName\SKILL.md"
+    $SkillDstDir = "$ClaudeDir\skills\$SkillName"
+    $SkillDst = "$SkillDstDir\SKILL.md"
+
+    if (-not (Test-Path $SkillSrc)) { continue }
+
+    New-Item -ItemType Directory -Force -Path $SkillDstDir | Out-Null
+
+    if (Test-Path $SkillDst) {
+        Copy-Item $SkillSrc "$SkillDstDir\eazycheck-preset.md" -Force
+        $SkillsSkipped++
+    } else {
+        Copy-Item $SkillSrc $SkillDst -Force
+        $SkillsInstalled++
+    }
 }
+Write-Host "  skills: ${SkillsInstalled}개 설치, ${SkillsSkipped}개 기존 유지"
 
 # 5. patterns.json
 if (Test-Path "$ClaudeDir\state\patterns.json") {
@@ -85,6 +102,8 @@ if (Test-Path "$ClaudeDir\CLAUDE.md") {
 $SettingsFile = "$ClaudeDir\settings.json"
 $GatePath = "$ClaudeDir\hooks\eazycheck-gate.py" -replace "\\", "/"
 $SmartGatePath = "$ClaudeDir\hooks\eazycheck-smart-gate.py" -replace "\\", "/"
+$PatternTriggerPath = "$ClaudeDir\hooks\eazycheck-pattern-trigger.py" -replace "\\", "/"
+$PrecompactPath = "$ClaudeDir\hooks\eazycheck-precompact.py" -replace "\\", "/"
 
 if (Test-Path $SettingsFile) {
     $settingsContent = Get-Content $SettingsFile -Raw -ErrorAction SilentlyContinue
@@ -101,7 +120,9 @@ hooks = settings.setdefault('hooks', {})
 pre = hooks.setdefault('PreToolUse', [])
 pre.append({'matcher': 'Write|Edit|MultiEdit', 'hooks': [{'type': 'command', 'command': '$PythonCmd $GatePath'}]})
 user = hooks.setdefault('UserPromptSubmit', [])
-user.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PythonCmd $SmartGatePath'}]})
+user.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PythonCmd $SmartGatePath'}, {'type': 'command', 'command': '$PythonCmd $PatternTriggerPath'}]})
+compact = hooks.setdefault('PreCompact', [])
+compact.append({'matcher': '', 'hooks': [{'type': 'command', 'command': '$PythonCmd $PrecompactPath'}]})
 with open(r'$SettingsFile', 'w', encoding='utf-8') as f:
     json.dump(settings, f, indent=2, ensure_ascii=False)
 "@
@@ -135,6 +156,21 @@ with open(r'$SettingsFile', 'w', encoding='utf-8') as f:
           {
             "type": "command",
             "command": "$PythonCmd $SmartGatePath"
+          },
+          {
+            "type": "command",
+            "command": "$PythonCmd $PatternTriggerPath"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$PythonCmd $PrecompactPath"
           }
         ]
       }
@@ -152,4 +188,6 @@ Write-Host ""
 Write-Host "동작 확인:"
 Write-Host "  - API 키를 코드에 쓰면 자동 차단됩니다"
 Write-Host "  - 과거 실수와 비슷한 작업 시 자동 경고합니다"
+Write-Host "  - 긍정/결정 표현 감지 시 패턴을 자동 축적합니다"
+Write-Host "  - 컨텍스트 압축 전 미처리 패턴을 보존합니다"
 Write-Host "  - /sim 으로 완성된 코드의 미래 문제를 탐지합니다"
